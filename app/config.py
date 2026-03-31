@@ -61,8 +61,41 @@ class AppConfig(BaseSettings):
     # Async settings
     use_async: bool = True
     
+    # Cluster Imbalance Index thresholds
+    cii_threshold_current: float = 0.5  # Threshold for current metrics CII
+    cii_threshold_predicted: float = 0.5  # Threshold for predicted metrics CII
+    
+    # Prediction settings
+    prediction_lookback_hours: int = 0.5  # 30 minutes historical data for prediction
+    prediction_horizon_minutes: int = 5  # Predict next 5 minutes
+    
+    # Problematic hosts identification
+    problematic_hosts_percentile: float = 75.0  # Top 25% threshold
+    
     class Config:
         env_prefix = "APP_"
+        case_sensitive = False
+
+
+class OpenStackConfig(BaseSettings):
+    """OpenStack connection settings"""
+    auth_url: str = os.getenv("OPENSTACK_AUTH_URL", "http://localhost:5000/v3")
+    username: str = os.getenv("OPENSTACK_USERNAME", "admin")
+    password: str = os.getenv("OPENSTACK_PASSWORD", "admin")
+    project_name: str = os.getenv("OPENSTACK_PROJECT_NAME", "admin")
+    project_domain_id: str = os.getenv("OPENSTACK_PROJECT_DOMAIN_ID", "default")
+    user_domain_id: str = os.getenv("OPENSTACK_USER_DOMAIN_ID", "default")
+    region_name: Optional[str] = os.getenv("OPENSTACK_REGION_NAME", "RegionOne")
+    timeout: int = 30
+    
+    # Migration detection settings
+    migration_check_minutes: int = 5  # Check for events in last N minutes
+    event_types: list[str] = ["compute.instance.live.migration.pre.start", 
+                               "compute.instance.create.start", 
+                               "compute.instance.delete.start"]
+    
+    class Config:
+        env_prefix = "OPENSTACK_"
         case_sensitive = False
 
 
@@ -72,6 +105,7 @@ class Settings(BaseSettings):
     redis: RedisConfig = RedisConfig()
     collector: CollectorConfig = CollectorConfig()
     app: AppConfig = AppConfig()
+    openstack: OpenStackConfig = OpenStackConfig()
     
     class Config:
         case_sensitive = False

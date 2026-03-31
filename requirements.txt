@@ -34,7 +34,7 @@ python-dateutil==2.9.0.post0
 pytz==2025.2
 
 # Optional: Analytics & ML (install separately for GPU support)
-# chronos-forecasting  # Uncomment for time-series forecasting
+chronos-forecasting  # Time-series forecasting for predictive DRS
 
 # Optional: Database Support
 psycopg2-binary==2.9.10

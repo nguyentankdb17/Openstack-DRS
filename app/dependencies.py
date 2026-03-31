@@ -11,6 +11,8 @@ from clients.prometheus_client import AsyncPrometheusClient
 from services.prediction.predictor_service import PredictorService
 from services.scoring.cluster_imbalance import ScoringService
 from services.analytic.analytic_service import AnalyticService
+from services.migration_detector import MigrationEventDetector
+from services.decision.decision_engine import DecisionEngine
 from utils.logger import get_logger
 
 
@@ -22,6 +24,8 @@ _prometheus_client: Optional[AsyncPrometheusClient] = None
 _predictor_service: Optional[PredictorService] = None
 _scoring_service: Optional[ScoringService] = None
 _analytic_service: Optional[AnalyticService] = None
+_migration_detector: Optional[MigrationEventDetector] = None
+_decision_engine: Optional[DecisionEngine] = None
 _settings: Optional[Settings] = None
 
 
@@ -98,13 +102,15 @@ async def cleanup_clients():
 
 async def reset_dependencies():
     """Reset dependency singletons (for testing)."""
-    global _redis_client, _prometheus_client, _settings, _predictor_service, _scoring_service, _analytic_service
+    global _redis_client, _prometheus_client, _settings, _predictor_service, _scoring_service, _analytic_service, _migration_detector, _decision_engine
     
     await cleanup_clients()
     _settings = None
     _predictor_service = None
     _scoring_service = None
     _analytic_service = None
+    _migration_detector = None
+    _decision_engine = None
     logger.info("All dependencies reset")
 
 
@@ -126,12 +132,53 @@ def get_scoring_service() -> ScoringService:
     return _scoring_service
 
 
-async def get_analytic_service() -> AnalyticService:
+async def get_analytic_service(settings: Settings = Depends(get_settings)) -> AnalyticService:
     """Get AnalyticService singleton."""
     global _analytic_service
     if _analytic_service is None:
         prometheus = await get_prometheus_client()
         scoring = get_scoring_service()
-        _analytic_service = AnalyticService(prometheus, scoring)
-        logger.info("AnalyticService initialized")
+        
+        # Include predictor service if prediction is enabled
+        predictor = None
+        if settings.app.enable_prediction:
+            predictor = get_predictor_service()
+        
+        _analytic_service = AnalyticService(
+            prometheus_client=prometheus,
+            scoring_service=scoring,
+            predictor_service=predictor
+        )
+        logger.info(
+            f"AnalyticService initialized "
+            f"(prediction: {'enabled' if settings.app.enable_prediction else 'disabled'})"
+        )
     return _analytic_service
+
+
+async def get_migration_detector(settings: Settings = Depends(get_settings)) -> MigrationEventDetector:
+    """Get MigrationEventDetector singleton."""
+    global _migration_detector
+    if _migration_detector is None:
+        _migration_detector = MigrationEventDetector(settings.openstack)
+        logger.info("MigrationEventDetector initialized")
+    return _migration_detector
+
+
+async def get_decision_engine(
+    analytic_service: AnalyticService = Depends(get_analytic_service),
+    migration_detector: MigrationEventDetector = Depends(get_migration_detector),
+    settings: Settings = Depends(get_settings)
+) -> DecisionEngine:
+    """Get DecisionEngine singleton."""
+    global _decision_engine
+    if _decision_engine is None:
+        scoring = get_scoring_service()
+        _decision_engine = DecisionEngine(
+            analytic_service=analytic_service,
+            scoring_service=scoring,
+            migration_detector=migration_detector,
+            settings=settings
+        )
+        logger.info("DecisionEngine initialized")
+    return _decision_engine

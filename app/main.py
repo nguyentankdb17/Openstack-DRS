@@ -17,7 +17,7 @@ import pandas as pd
 
 from config import get_settings
 from middleware import setup_middleware
-from dependencies import cleanup_clients, reset_dependencies, get_analytic_service
+from dependencies import cleanup_clients, reset_dependencies, get_decision_engine
 from api.v1.router import router as api_v1_router
 from utils.logger import setup_logger
 
@@ -53,22 +53,47 @@ def _schedule_analytics_task():
 
 async def calculate_cluster_imbalance_task():
     """
-    Background task to calculate cluster imbalance index every 5 minutes.
-    Delegates to AnalyticService for metric querying and CII calculation.
+    Background task to execute DRS decision cycle every 5 minutes.
+    
+    Workflow:
+    1. Check if migration events occurred in last 5 minutes
+    2. If events exist → Skip decision
+    3. If no events → Calculate current CII
+    4. If current CII > threshold → Recommend migration
+    5. If current CII ≤ threshold → Predict future CII
+    6. If predicted CII > threshold → Recommend proactive migration
     """
     try:
-        logger.info("Triggered cluster imbalance calculation task...")
+        logger.debug("Triggered 5-minute DRS decision cycle...")
         
-        analytic_service = await get_analytic_service()
-        result = await analytic_service.calculate_cluster_imbalance()
+        decision_engine = await get_decision_engine()
+        decision_result = await decision_engine.execute_decision_cycle()
         
-        if result:
-            logger.info(f"✓ CII calculation completed - Index: {result.get('cii', 0):.4f}")
+        if decision_result:
+            decision = decision_result.get("decision")
+            reason = decision_result.get("reason", "")
+            
+            logger.info(
+                f"Decision Cycle Complete - Decision: {decision} | {reason}"
+            )
+            
+            # If migration is recommended, log detailed information
+            if decision == "migrate":
+                problematic_hosts = decision_result.get("problematic_hosts", [])
+                logger.warning(f"⚠ MIGRATION RECOMMENDED")
+                logger.warning(f"  Reason: {decision_result.get('migration_reason', 'Unknown')}")
+                logger.warning(f"  Current CII: {decision_result.get('current_cii', 'N/A')}")
+                logger.warning(f"  Predicted CII: {decision_result.get('predicted_cii', 'N/A')}")
+                logger.warning(f"  Hosts to migrate from: {problematic_hosts}")
+                
+                # TODO: Trigger actual live migration workflow here
+                # - Contact OpenStack to identify VMs on these hosts
+                # - Execute live migration to less-loaded hosts
         else:
-            logger.warning("CII calculation returned no result")
+            logger.warning("Decision cycle returned no result")
             
     except Exception as e:
-        logger.error(f"Cluster imbalance calculation task failed: {e}", exc_info=True)
+        logger.error(f"DRS decision cycle failed: {e}", exc_info=True)
 
 
 @asynccontextmanager
