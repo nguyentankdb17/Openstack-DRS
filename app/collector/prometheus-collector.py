@@ -9,9 +9,7 @@ from app import config
 from app.core.constants import CPU_METRIC, RAM_METRIC, RUNNING_VM_METRIC, SWAP_METRIC
 from app.utils.logger import get_logger
 
-
 logger = get_logger(__name__)
-
 
 def _prometheus_auth() -> tuple[str, str] | None:
 	username = (config.PROMETHEUS_USERNAME or "").strip()

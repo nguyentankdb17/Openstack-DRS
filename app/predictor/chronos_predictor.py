@@ -20,6 +20,12 @@ class ChronosPredictor:
 		self._pipeline = None
 		self._load_attempted = False
 
+	def _split_item_id(self, item_id: str) -> tuple[str | None, str]:
+		if ":" in item_id:
+			host, metric = item_id.split(":", 1)
+			return host, metric
+		return None, item_id
+
 	def _try_load(self) -> None:
 		if self._load_attempted:
 			return
@@ -43,6 +49,17 @@ class ChronosPredictor:
 		avg = float(window.mean())
 		return [max(avg, 0.0)] * steps
 
+	def _predict_metric_values(
+		self,
+		host_chronos_history: pd.DataFrame,
+		metric: str,
+		steps: int,
+	) -> list[float]:
+		return self._naive_predict(
+			host_chronos_history.loc[host_chronos_history["item_id"] == metric, "target"],
+			steps,
+		)
+
 	def predict(self, history_df: pd.DataFrame, future_df: pd.DataFrame) -> pd.DataFrame:
 		if future_df.empty:
 			return future_df
@@ -50,43 +67,43 @@ class ChronosPredictor:
 		self._try_load()
 		output_rows: list[dict] = []
 
-		for host, host_future in future_df.groupby("host"):
+		if "item_id" in future_df.columns:
+			future_work_df = future_df.copy()
+			future_work_df[["host", "metric"]] = future_work_df["item_id"].apply(
+				lambda item_id: pd.Series(self._split_item_id(str(item_id)))
+			)
+			if future_work_df["host"].isna().any():
+				unique_hosts = history_df["host"].dropna().unique()
+				if len(unique_hosts) == 1:
+					future_work_df["host"] = future_work_df["host"].fillna(unique_hosts[0])
+		else:
+			future_work_df = future_df.copy()
+
+		for host, host_future in future_work_df.groupby("host"):
 			host_history = history_df[history_df["host"] == host].sort_values("timestamp")
 			host_chronos_history = build_chronos_history_df(host_history)
-			steps = len(host_future)
+			host_timestamps = (
+				host_future.sort_values("timestamp")
+				.drop_duplicates(subset=["timestamp"])
+				[["timestamp", "running_vm"]]
+			)
+			steps = len(host_timestamps)
+			if steps == 0:
+				continue
 
-			cpu_values = self._naive_predict(
-				host_chronos_history.loc[host_chronos_history["item_id"] == CPU_METRIC, "target"],
-				steps,
-			)
-			ram_values = self._naive_predict(
-				host_chronos_history.loc[host_chronos_history["item_id"] == RAM_METRIC, "target"],
-				steps,
-			)
-			swap_values = self._naive_predict(
-				host_chronos_history.loc[host_chronos_history["item_id"] == SWAP_METRIC, "target"],
-				steps,
-			)
-
+			cpu_values = self._predict_metric_values(host_chronos_history, CPU_METRIC, steps)
+			ram_values = self._predict_metric_values(host_chronos_history, RAM_METRIC, steps)
+			swap_values = self._predict_metric_values(host_chronos_history, SWAP_METRIC, steps)
 			# Until Chronos runtime is guaranteed in all environments, keep fallback deterministic.
 			if self._pipeline is not None:
 				try:
-					cpu_values = self._naive_predict(
-						host_chronos_history.loc[host_chronos_history["item_id"] == CPU_METRIC, "target"],
-						steps,
-					)
-					ram_values = self._naive_predict(
-						host_chronos_history.loc[host_chronos_history["item_id"] == RAM_METRIC, "target"],
-						steps,
-					)
-					swap_values = self._naive_predict(
-						host_chronos_history.loc[host_chronos_history["item_id"] == SWAP_METRIC, "target"],
-						steps,
-					)
+					cpu_values = self._predict_metric_values(host_chronos_history, CPU_METRIC, steps)
+					ram_values = self._predict_metric_values(host_chronos_history, RAM_METRIC, steps)
+					swap_values = self._predict_metric_values(host_chronos_history, SWAP_METRIC, steps)
 				except Exception as exc:  # pylint: disable=broad-except
 					logger.warning("Chronos inference failed for host %s, using fallback: %s", host, exc)
 
-			for idx, (_, row) in enumerate(host_future.sort_values("timestamp").iterrows()):
+			for idx, (_, row) in enumerate(host_timestamps.iterrows()):
 				output_rows.append(
 					{
 						"timestamp": row["timestamp"],
