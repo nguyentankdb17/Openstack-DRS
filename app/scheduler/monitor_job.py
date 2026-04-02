@@ -9,7 +9,7 @@ from app.services.decision_service import (
     evaluate_predicted,
 )
 from app.services.metrics_service import collect_30m_metrics, collect_5m_metrics
-from app.services.prediction_service import build_predict_input, predict_next_window
+from app.services.prediction_service import build_chronos_input, build_predict_input, predict_next_window
 from app.utils.logger import get_logger
 
 scheduler = AsyncIOScheduler()
@@ -32,8 +32,11 @@ def monitor_cluster():
 
         history_df = collect_30m_metrics()
         history_df.to_csv("history_df.csv", index=False)  # Debugging output
+        build_chronos_input(history_df).to_csv("history_df_chronos.csv", index=False)  # Chronos format
         future_df = build_predict_input(history_df)
+        future_df.to_csv("future_df.csv", index=False)  # Debugging output
         pred_df = predict_next_window(history_df, future_df)
+        pred_df.to_csv("pred_df.csv", index=False)  # Debugging output
 
         predicted_decision = evaluate_predicted(
             pred_df=pred_df,

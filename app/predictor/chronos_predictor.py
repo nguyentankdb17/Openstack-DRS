@@ -5,7 +5,9 @@ import pandas as pd
 
 from app import config
 from app.core.constants import CPU_METRIC, RAM_METRIC, SWAP_METRIC
+from app.predictor.feature_builder import build_chronos_history_df
 from app.utils.logger import get_logger
+from chronos import BaseChronosPipeline, Chronos2Pipeline
 
 
 logger = get_logger(__name__)
@@ -24,12 +26,14 @@ class ChronosPredictor:
 		self._load_attempted = True
 
 		try:
-			from chronos import ChronosPipeline  # type: ignore
-
-			self._pipeline = ChronosPipeline.from_pretrained(self.model_name, device_map=self.device)
+			self._pipeline: Chronos2Pipeline = BaseChronosPipeline.from_pretrained(
+				self.model_name,
+				device_map=self.device,
+			)
 			logger.info("Chronos model loaded: %s", self.model_name)
-		except Exception as exc:  # pylint: disable=broad-except
-			logger.warning("Cannot load Chronos model, fallback enabled: %s", exc)
+
+		except Exception as e:
+			logger.exception("Failed to load Chronos model: %s", e)
 			self._pipeline = None
 
 	def _naive_predict(self, history: pd.Series, steps: int) -> list[float]:
@@ -48,18 +52,37 @@ class ChronosPredictor:
 
 		for host, host_future in future_df.groupby("host"):
 			host_history = history_df[history_df["host"] == host].sort_values("timestamp")
+			host_chronos_history = build_chronos_history_df(host_history)
 			steps = len(host_future)
 
-			cpu_values = self._naive_predict(host_history[CPU_METRIC], steps)
-			ram_values = self._naive_predict(host_history[RAM_METRIC], steps)
-			swap_values = self._naive_predict(host_history[SWAP_METRIC], steps)
+			cpu_values = self._naive_predict(
+				host_chronos_history.loc[host_chronos_history["item_id"] == CPU_METRIC, "target"],
+				steps,
+			)
+			ram_values = self._naive_predict(
+				host_chronos_history.loc[host_chronos_history["item_id"] == RAM_METRIC, "target"],
+				steps,
+			)
+			swap_values = self._naive_predict(
+				host_chronos_history.loc[host_chronos_history["item_id"] == SWAP_METRIC, "target"],
+				steps,
+			)
 
 			# Until Chronos runtime is guaranteed in all environments, keep fallback deterministic.
 			if self._pipeline is not None:
 				try:
-					cpu_values = self._naive_predict(host_history[CPU_METRIC], steps)
-					ram_values = self._naive_predict(host_history[RAM_METRIC], steps)
-					swap_values = self._naive_predict(host_history[SWAP_METRIC], steps)
+					cpu_values = self._naive_predict(
+						host_chronos_history.loc[host_chronos_history["item_id"] == CPU_METRIC, "target"],
+						steps,
+					)
+					ram_values = self._naive_predict(
+						host_chronos_history.loc[host_chronos_history["item_id"] == RAM_METRIC, "target"],
+						steps,
+					)
+					swap_values = self._naive_predict(
+						host_chronos_history.loc[host_chronos_history["item_id"] == SWAP_METRIC, "target"],
+						steps,
+					)
 				except Exception as exc:  # pylint: disable=broad-except
 					logger.warning("Chronos inference failed for host %s, using fallback: %s", host, exc)
 

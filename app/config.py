@@ -21,7 +21,7 @@ CPU_WEIGHT = float(os.getenv("CPU_WEIGHT", "0.5"))
 RAM_WEIGHT = float(os.getenv("RAM_WEIGHT", "0.3"))
 SWAP_WEIGHT = float(os.getenv("SWAP_WEIGHT", "0.2"))
 
-CHRONOS_MODEL_NAME = os.getenv("CHRONOS_MODEL_NAME", "amazon/chronos-t5-small")
+CHRONOS_MODEL_NAME = os.getenv("CHRONOS_MODEL_NAME", "amazon/chronos-2")
 CHRONOS_DEVICE = os.getenv("CHRONOS_DEVICE", "cpu")
 
 OPENSTACK_AUTH_URL = os.getenv("OPENSTACK_AUTH_URL", "")
