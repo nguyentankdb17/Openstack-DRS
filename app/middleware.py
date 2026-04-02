@@ -1,8 +1,3 @@
-"""
-Middleware setup for FastAPI application.
-Includes CORS, compression, error handling, and logging.
-"""
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -28,14 +23,7 @@ def setup_middleware(app: FastAPI):
     
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost",
-            "http://localhost:3000",
-            "http://localhost:8000",
-            "http://127.0.0.1",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8000",
-        ],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
