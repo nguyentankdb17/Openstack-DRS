@@ -38,6 +38,7 @@ chronos-forecasting  # Time-series forecasting for predictive DRS
 
 # Optional: Database Support
 psycopg2-binary==2.9.10
+PyMySQL==1.1.1
 
 # Type Checking & Linting (dev)
 # mypy==1.15.0  # Uncomment for development

@@ -1,126 +1,61 @@
-from pydantic_settings import BaseSettings
-from typing import Optional
-import logging
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  # Load environment variables from .env file
+load_dotenv()
 
+PROMETHEUS_BASE_URL = os.getenv("PROMETHEUS_BASE_URL", "http://localhost:9090")
+PROMETHEUS_USERNAME = os.getenv("PROMETHEUS_USERNAME", "admin")
+PROMETHEUS_PASSWORD = os.getenv("PROMETHEUS_PASSWORD", "admin")
+PROMETHEUS_TIMEOUT_SECONDS = int(os.getenv("PROMETHEUS_TIMEOUT_SECONDS", "20"))
 
-class PrometheusConfig(BaseSettings):
-    """Prometheus connection settings"""
-    url: str = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
-    username: Optional[str] = os.getenv("PROMETHEUS_USERNAME")
-    password: Optional[str] = os.getenv("PROMETHEUS_PASSWORD")
-    timeout: int = 30
-    
-    class Config:
-        env_prefix = "PROMETHEUS_"
-        case_sensitive = False
+SCHEDULER_INTERVAL_MINUTES = int(os.getenv("SCHEDULER_INTERVAL_MINUTES", "5"))
+CHECK_EVENT_LOOKBACK_MINUTES = int(os.getenv("CHECK_EVENT_LOOKBACK_MINUTES", "5"))
+HISTORY_LOOKBACK_MINUTES = int(os.getenv("HISTORY_LOOKBACK_MINUTES", "30"))
+PREDICTION_HORIZON_MINUTES = int(os.getenv("PREDICTION_HORIZON_MINUTES", "5"))
+PREDICTION_STEP_SECONDS = int(os.getenv("PREDICTION_STEP_SECONDS", "15"))
 
+CLUSTER_IMBALANCE_THRESHOLD = float(os.getenv("CLUSTER_IMBALANCE_THRESHOLD", "0.15"))
+UNBALANCED_TOP_K = int(os.getenv("UNBALANCED_TOP_K", "5"))
 
-class RedisConfig(BaseSettings):
-    """Redis connection settings"""
-    host: str = os.getenv("REDIS_HOST", "localhost")
-    port: int = 6379
-    db: int = os.getenv("REDIS_DB", 0)
-    password: Optional[str] = os.getenv("REDIS_PASSWORD")
-    stream_key: str = os.getenv("REDIS_STREAM_KEY", "metrics:stream")
-    consumer_group: str = os.getenv("REDIS_CONSUMER_GROUP", "metrics_group")
-    consumer_name: str = os.getenv("REDIS_CONSUMER_NAME", "metrics_consumer")
-    
-    class Config:
-        env_prefix = "REDIS_"
-        case_sensitive = False
+CPU_WEIGHT = float(os.getenv("CPU_WEIGHT", "0.5"))
+RAM_WEIGHT = float(os.getenv("RAM_WEIGHT", "0.3"))
+SWAP_WEIGHT = float(os.getenv("SWAP_WEIGHT", "0.2"))
 
+CHRONOS_MODEL_NAME = os.getenv("CHRONOS_MODEL_NAME", "amazon/chronos-t5-small")
+CHRONOS_DEVICE = os.getenv("CHRONOS_DEVICE", "cpu")
 
-class CollectorConfig(BaseSettings):
-    """Metrics collector settings"""
-    instance: list[str] = ["10.10.10.137", "10.10.10.138", "10.10.10.143"]
-    collection_interval_minutes: int = 5
-    query_step: str = "15s"
-    lookback_minutes: int = 5
-    
-    class Config:
-        env_prefix = "COLLECTOR_"
-        case_sensitive = False
+OPENSTACK_AUTH_URL = os.getenv("OPENSTACK_AUTH_URL", "")
+OPENSTACK_USERNAME = os.getenv("OPENSTACK_USERNAME", "")
+OPENSTACK_PASSWORD = os.getenv("OPENSTACK_PASSWORD", "")
+OPENSTACK_PROJECT_NAME = os.getenv("OPENSTACK_PROJECT_NAME", "")
+OPENSTACK_USER_DOMAIN_NAME = os.getenv("OPENSTACK_USER_DOMAIN_NAME", "Default")
+OPENSTACK_PROJECT_DOMAIN_NAME = os.getenv("OPENSTACK_PROJECT_DOMAIN_NAME", "Default")
+OPENSTACK_REGION_NAME = os.getenv("OPENSTACK_REGION_NAME", "RegionOne")
 
+NOVA_DB_HOST = os.getenv("NOVA_DB_HOST", "")
+NOVA_DB_PORT = int(os.getenv("NOVA_DB_PORT", "3306"))
+NOVA_DB_NAME = os.getenv("NOVA_DB_NAME", "nova")
+NOVA_DB_USER = os.getenv("NOVA_DB_USER", "")
+NOVA_DB_PASSWORD = os.getenv("NOVA_DB_PASSWORD", "")
+NOVA_DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv("NOVA_DB_CONNECT_TIMEOUT_SECONDS", "5"))
 
-class AppConfig(BaseSettings):
-    """Application-level settings"""
-    environment: str = "development"
-    log_level: str = "INFO"
-    api_title: str = "OpenstackDRS Metrics API"
-    api_version: str = "1.0.0"
-    api_prefix: str = "/api/v1"
-    
-    # Enable/disable features
-    enable_scheduler: bool = True
-    enable_prediction: bool = False
-    
-    # Async settings
-    use_async: bool = True
-    
-    # Cluster Imbalance Index thresholds
-    cii_threshold_current: float = 0.5  # Threshold for current metrics CII
-    cii_threshold_predicted: float = 0.5  # Threshold for predicted metrics CII
-    
-    # Prediction settings
-    prediction_lookback_hours: int = 0.5  # 30 minutes historical data for prediction
-    prediction_horizon_minutes: int = 5  # Predict next 5 minutes
-    
-    # Problematic hosts identification
-    problematic_hosts_percentile: float = 75.0  # Top 25% threshold
-    
-    class Config:
-        env_prefix = "APP_"
-        case_sensitive = False
+# The window placeholder is replaced by collector methods.
+HOST_CPU_QUERY = os.getenv(
+    "HOST_CPU_QUERY",
+    '100 - avg by (instance) (irate(node_cpu_seconds_total{job="compute-node-exporter",mode="idle"}[{window}])) * 100',
+)
 
+HOST_MEM_QUERY = os.getenv(
+    "HOST_MEM_QUERY",
+    '((node_memory_MemTotal_bytes{job="compute-node-exporter"} - (node_memory_MemFree_bytes{job="compute-node-exporter"} + node_memory_Buffers_bytes{job="compute-node-exporter"} + node_memory_Cached_bytes{job="compute-node-exporter"})) / node_memory_MemTotal_bytes{job="compute-node-exporter"}) * 100',
+)
 
-class OpenStackConfig(BaseSettings):
-    """OpenStack connection settings"""
-    auth_url: str = os.getenv("OPENSTACK_AUTH_URL", "http://localhost:5000/v3")
-    username: str = os.getenv("OPENSTACK_USERNAME", "admin")
-    password: str = os.getenv("OPENSTACK_PASSWORD", "admin")
-    project_name: str = os.getenv("OPENSTACK_PROJECT_NAME", "admin")
-    project_domain_id: str = os.getenv("OPENSTACK_PROJECT_DOMAIN_ID", "default")
-    user_domain_id: str = os.getenv("OPENSTACK_USER_DOMAIN_ID", "default")
-    region_name: Optional[str] = os.getenv("OPENSTACK_REGION_NAME", "RegionOne")
-    timeout: int = 30
-    
-    # Migration detection settings
-    migration_check_minutes: int = 5  # Check for events in last N minutes
-    event_types: list[str] = ["compute.instance.live.migration.pre.start", 
-                               "compute.instance.create.start", 
-                               "compute.instance.delete.start"]
-    
-    class Config:
-        env_prefix = "OPENSTACK_"
-        case_sensitive = False
+HOST_SWAP_QUERY = os.getenv(
+    "HOST_SWAP_QUERY",
+    '((node_memory_SwapTotal_bytes{job="compute-node-exporter"} - node_memory_SwapFree_bytes{job="compute-node-exporter"}) / clamp_min(node_memory_SwapTotal_bytes{job="compute-node-exporter"}, 1)) * 100',
+)
 
-
-class Settings(BaseSettings):
-    """Root settings combining all config sections"""
-    prometheus: PrometheusConfig = PrometheusConfig()
-    redis: RedisConfig = RedisConfig()
-    collector: CollectorConfig = CollectorConfig()
-    app: AppConfig = AppConfig()
-    openstack: OpenStackConfig = OpenStackConfig()
-    
-    class Config:
-        case_sensitive = False
-        env_nested_delimiter = "__"
-
-
-def get_settings() -> Settings:
-    """Singleton pattern: returns or creates Settings instance"""
-    return Settings()
-
-
-def setup_logging(log_level: str = "INFO") -> logging.Logger:
-    """Configure structured logging."""
-    logging.basicConfig(
-        level=getattr(logging, log_level.upper()),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    return logging.getLogger(__name__)
+HOST_RUNNING_VM_QUERY = os.getenv(
+    "HOST_RUNNING_VM_QUERY",
+    'count by (instance) (libvirt_domain_info_state{job="libvirt-exporter"} == 1)',
+)
