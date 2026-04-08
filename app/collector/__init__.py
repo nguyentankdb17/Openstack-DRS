@@ -23,3 +23,4 @@ _prometheus_mod = _load_module("prometheus-collector.py", "collector.prometheus_
 has_recent_vm_events = _openstack_mod.has_recent_vm_events
 collect_host_metric_averages = _prometheus_mod.collect_host_metric_averages
 collect_host_metric_history = _prometheus_mod.collect_host_metric_history
+collect_vm_metric_averages = _prometheus_mod.collect_vm_metric_averages

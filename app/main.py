@@ -10,6 +10,7 @@ if __package__ in {None, ""}:
         sys.path.insert(0, project_root)
 
 from app.api.monitor import router as monitor_router
+from app.api.inventory import router as inventory_router
 from app.middleware import setup_middleware
 from app.core import settings
 from app.scheduler.monitor_job import start_scheduler, stop_scheduler
@@ -34,9 +35,12 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler stopped")
 
 def create_app() -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
+    #app = FastAPI(lifespan=lifespan)
+    app = FastAPI()
+    setup_logging(settings.app.log_level)
     setup_middleware(app)
     app.include_router(monitor_router, prefix="/api/v1")
+    app.include_router(inventory_router, prefix="/api/v1")
     return app
 
 app = create_app()
@@ -48,5 +52,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.app.environment == "development",
-        log_level=settings.app.log_level.lower(),
+        log_level="DEBUG",
     )

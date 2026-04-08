@@ -6,7 +6,7 @@ import pandas as pd
 
 from app import config
 from app.core import constants
-from app.models.schemas import ClusterDecision, HostDeviation
+from app.models.schemas import ClusterDecision, HostDeviation, MigrationCandidate, MigrationExecutionResult, MigrationPlan
 from app.scoring.cluster_imbalance import compute_cluster_imbalance, find_unbalanced_hosts
 
 
@@ -112,5 +112,39 @@ def build_error_decision(message: str) -> ClusterDecision:
 			timestamp=datetime.now(timezone.utc),
 			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
 			details=message,
+		)
+	)
+
+
+def build_migration_plan_decision(plan: MigrationPlan) -> ClusterDecision:
+	status = constants.STATUS_MIGRATION_PLANNED if plan.candidates else constants.STATUS_REEVALUATING
+	return set_latest_decision(
+		ClusterDecision(
+			status=status,
+			timestamp=datetime.now(timezone.utc),
+			current_cluster_imbalance=plan.current_cluster_imbalance,
+			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
+			unbalanced_hosts=plan.overloaded_hosts,
+			planned_candidates=plan.candidates,
+			details=plan.details,
+		)
+	)
+
+
+def build_migration_execution_decision(
+	candidate: MigrationCandidate,
+	result: MigrationExecutionResult,
+	current_score: float | None = None,
+) -> ClusterDecision:
+	status = constants.STATUS_MIGRATION_EXECUTED if result.success else constants.STATUS_MIGRATION_FAILED
+	return set_latest_decision(
+		ClusterDecision(
+			status=status,
+			timestamp=datetime.now(timezone.utc),
+			current_cluster_imbalance=current_score,
+			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
+			selected_candidate=candidate,
+			execution_result=result,
+			details=result.message,
 		)
 	)
