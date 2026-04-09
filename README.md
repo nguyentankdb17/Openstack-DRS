@@ -170,9 +170,9 @@ See [requirements.txt](requirements.txt) for complete list.
 | GET | `/api/v1/collector/instances` | List available instances |
 | POST | `/api/v1/export/dataframe` | Export metrics as DataFrame |
 | POST | `/api/v1/export/joined-dataframe` | Export with running VMs info |
-| GET | `/api/v1/metrics/latest` | Get latest metrics |
-| GET | `/api/v1/metrics/host/{id}` | Get metrics by host |
-| GET | `/api/v1/metrics/name/{name}` | Get metrics by name |
+| GET | `/api/v1/statistics/latest` | Get latest metrics |
+| GET | `/api/v1/statistics/host/{id}` | Get metrics by host |
+| GET | `/api/v1/statistics/name/{name}` | Get metrics by name |
 | GET | `/api/v1/health` | Health status |
 
 ## Troubleshooting

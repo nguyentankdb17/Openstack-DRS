@@ -9,17 +9,27 @@ PROMETHEUS_PASSWORD = os.getenv("PROMETHEUS_PASSWORD", "admin")
 PROMETHEUS_TIMEOUT_SECONDS = int(os.getenv("PROMETHEUS_TIMEOUT_SECONDS", "20"))
 
 SCHEDULER_INTERVAL_MINUTES = int(os.getenv("SCHEDULER_INTERVAL_MINUTES", "5"))
+SCHEDULER_START_MODE = os.getenv("SCHEDULER_START_MODE", "lazy").strip().lower()
+SCHEDULER_STARTUP_DELAY_SECONDS = int(os.getenv("SCHEDULER_STARTUP_DELAY_SECONDS", "0"))
 CHECK_EVENT_LOOKBACK_MINUTES = int(os.getenv("CHECK_EVENT_LOOKBACK_MINUTES", "5"))
 HISTORY_LOOKBACK_MINUTES = int(os.getenv("HISTORY_LOOKBACK_MINUTES", "30"))
 PREDICTION_HORIZON_MINUTES = int(os.getenv("PREDICTION_HORIZON_MINUTES", "5"))
 PREDICTION_STEP_SECONDS = int(os.getenv("PREDICTION_STEP_SECONDS", "15"))
 
 CLUSTER_IMBALANCE_THRESHOLD = float(os.getenv("CLUSTER_IMBALANCE_THRESHOLD", "0.15"))
-UNBALANCED_TOP_K = int(os.getenv("UNBALANCED_TOP_K", "5"))
 
 CPU_WEIGHT = float(os.getenv("CPU_WEIGHT", "0.5"))
 RAM_WEIGHT = float(os.getenv("RAM_WEIGHT", "0.3"))
 SWAP_WEIGHT = float(os.getenv("SWAP_WEIGHT", "0.2"))
+
+MIGRATION_TARGET_MAX_CPU_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_CPU_USAGE", "85"))
+MIGRATION_TARGET_MAX_RAM_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_RAM_USAGE", "85"))
+MIGRATION_TARGET_MAX_SWAP_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_SWAP_USAGE", "80"))
+MIGRATION_MIN_NET_BENEFIT = float(os.getenv("MIGRATION_MIN_NET_BENEFIT", "0.1"))
+MAX_MIGRATIONS_PER_CYCLE = int(os.getenv("MAX_MIGRATIONS_PER_CYCLE", "1"))
+CPU_ALLOCATION_RATIO = float(os.getenv("CPU_ALLOCATION_RATIO", "4"))
+RAM_ALLOCATION_RATIO = float(os.getenv("RAM_ALLOCATION_RATIO", "1"))
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 CHRONOS_MODEL_NAME = os.getenv("CHRONOS_MODEL_NAME", "amazon/chronos-2")
 CHRONOS_DEVICE = os.getenv("CHRONOS_DEVICE", "cpu")
@@ -58,4 +68,29 @@ HOST_SWAP_QUERY = os.getenv(
 HOST_RUNNING_VM_QUERY = os.getenv(
     "HOST_RUNNING_VM_QUERY",
     'count by (instance) (libvirt_domain_info_state{job="libvirt-exporter"} == 1)',
+)
+
+HOST_TOTAL_CPU_QUERY = os.getenv(
+    "HOST_TOTAL_CPU_QUERY",
+    'count by (instance) (node_cpu_seconds_total{job="compute-node-exporter",mode="idle"})',
+)
+
+HOST_TOTAL_MEM_QUERY = os.getenv(
+    "HOST_TOTAL_MEM_QUERY",
+    'node_memory_MemTotal_bytes{job="compute-node-exporter"} / 1024 / 1024',
+)
+
+HOST_TOTAL_SWAP_QUERY = os.getenv(
+    "HOST_TOTAL_SWAP_QUERY",
+    'node_memory_SwapTotal_bytes{job="compute-node-exporter"} / 1024 / 1024',
+)
+
+VM_CPU_QUERY = os.getenv(
+    "VM_CPU_QUERY",
+    'rate(libvirt_domain_info_cpu_time_seconds_total{job="libvirt-exporter"}[{window}]) * 100',
+)
+
+VM_MEM_QUERY = os.getenv(
+    "VM_MEM_QUERY",
+    '((libvirt_domain_info_maximum_memory_bytes{job="libvirt-exporter"} - avg_over_time(libvirt_domain_memory_stats_unused_bytes{job="libvirt-exporter"}[{window}]))/ libvirt_domain_info_maximum_memory_bytes{job="libvirt-exporter"}) * 100',
 )
