@@ -114,7 +114,6 @@ def build_migration_plan_decision(plan: MigrationPlan) -> ClusterDecision:
 			timestamp=datetime.now(timezone.utc),
 			current_cluster_imbalance=plan.current_cluster_imbalance,
 			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
-			unbalanced_hosts=plan.overloaded_hosts,
 			planned_candidates=plan.candidates,
 			details=plan.details,
 		)

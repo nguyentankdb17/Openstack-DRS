@@ -6,9 +6,8 @@ from typing import Any
 
 from app import config
 from app.decision.planner.simulate_migration import compute_inventory_imbalance, simulate_migration
-from app.decision.policy.affinity_policy import filter_candidates
+from app.decision.constraints.affinity_policy import filter_candidates
 from app.models.schemas import (
-	HostDeviation,
 	HostMetricSnapshot,
 	MigrationCandidate,
 	MigrationPlan,
@@ -117,21 +116,18 @@ class MigrationPlanner:
 	def build_plan(
 		self,
 		host_metrics: list[HostMetricSnapshot],
-		overloaded_hosts: list[HostDeviation] | None,
 		vm_inventory: list[VMInventory],
 		vm_host_rules: list[VMHostAffinityRule] | None = None,
 		vm_vm_rules: list[VMAffinityRule] | None = None,
 		current_cluster_imbalance: float | None = None,
 		inventory_payload: list[dict[str, Any]] | None = None,
 	) -> MigrationPlan:
-		overloaded_hosts = overloaded_hosts or []
 		vm_host_rules = vm_host_rules or []
 		vm_vm_rules = vm_vm_rules or []
 		working_inventory = deepcopy(inventory_payload) if inventory_payload is not None else _build_inventory_payload(host_metrics, vm_inventory)
 		if not working_inventory:
 			logger.debug("build_plan aborted: empty working inventory")
 			return MigrationPlan(
-				overloaded_hosts=[],
 				candidates=[],
 				current_cluster_imbalance=current_cluster_imbalance,
 				details="No inventory available for migration simulation",
@@ -149,13 +145,13 @@ class MigrationPlanner:
 				config.CLUSTER_IMBALANCE_THRESHOLD,
 			)
 			return MigrationPlan(
-				overloaded_hosts=[],
 				candidates=[],
 				current_cluster_imbalance=baseline_imbalance,
 				details="Cluster imbalance is already under threshold",
 			)
 
 		planned_candidates: list[MigrationCandidate] = []
+		used_vm_ids: set[str] = set()
 		working_vm_inventory = list(vm_inventory)
 		current_imbalance = baseline_imbalance
 		remaining_steps = max(1, sum(len(item.get("vm", [])) for item in working_inventory))
@@ -174,11 +170,13 @@ class MigrationPlanner:
 				break
 
 			allowed_candidates, _ = filter_candidates(raw_candidates, working_vm_inventory, vm_host_rules, vm_vm_rules)
+			allowed_candidates = [candidate for candidate in allowed_candidates if candidate.vm_id not in used_vm_ids]
 			logger.debug(
-				"build_plan step=%d: raw_candidates=%d allowed_candidates=%d current_imbalance=%.6f",
+				"build_plan step=%d: raw_candidates=%d allowed_candidates=%d used_vm_ids=%s current_imbalance=%.6f",
 				current_step,
 				len(raw_candidates),
 				len(allowed_candidates),
+				sorted(used_vm_ids),
 				current_imbalance,
 			)
 			best_candidate: MigrationCandidate | None = None
@@ -232,17 +230,19 @@ class MigrationPlanner:
 				break
 
 			planned_candidates.append(best_candidate)
+			used_vm_ids.add(best_candidate.vm_id)
 			working_inventory = best_inventory
 			working_vm_inventory = _refresh_vm_hosts(working_vm_inventory, best_candidate)
 			current_imbalance = best_imbalance
 			remaining_steps -= 1
 			logger.debug(
-				"build_plan apply step=%d: selected vm_id=%s source=%s target=%s new_imbalance=%.6f remaining_steps=%d",
+				"build_plan apply step=%d: selected vm_id=%s source=%s target=%s new_imbalance=%.6f used_vm_ids=%s remaining_steps=%d",
 				current_step,
 				best_candidate.vm_id,
 				best_candidate.source_host,
 				best_candidate.target_host,
 				current_imbalance,
+				sorted(used_vm_ids),
 				remaining_steps,
 			)
 
@@ -262,7 +262,6 @@ class MigrationPlanner:
 		)
 
 		return MigrationPlan(
-			overloaded_hosts=[],
 			candidates=planned_candidates,
 			current_cluster_imbalance=baseline_imbalance,
 			details=details,

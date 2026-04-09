@@ -42,7 +42,7 @@ def _build_conn() -> connection.Connection | None:
 		region_name=config.OPENSTACK_REGION_NAME,
 	)
 
-
+# Get hostname of the server
 def _server_host(server: Any) -> str:
 	for attribute_name in ("OS-EXT-SRV-ATTR:host", "hypervisor_hostname", "host", "compute_host"):
 		value = getattr(server, attribute_name, None)
@@ -51,6 +51,7 @@ def _server_host(server: Any) -> str:
 	return "unknown"
 
 
+# Get metadata dictionary from the server, ensuring all keys and values are strings
 def _server_metadata(server: Any) -> dict[str, str]:
 	metadata = getattr(server, "metadata", None) or {}
 	return {str(key): str(value) for key, value in metadata.items()}

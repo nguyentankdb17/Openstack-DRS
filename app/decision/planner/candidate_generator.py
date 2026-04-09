@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app import config
-from app.models.schemas import HostDeviation, HostMetricSnapshot, MigrationCandidate, VMHostAffinityRule, VMInventory, VMAffinityRule
-from app.decision.policy.affinity_policy import filter_candidates
+from app.models.schemas import HostMetricSnapshot, MigrationCandidate, VMHostAffinityRule, VMInventory, VMAffinityRule
+from app.decision.constraints.affinity_policy import filter_candidates
 
 
 def _host_metric_map(host_metrics: list[HostMetricSnapshot]) -> dict[str, HostMetricSnapshot]:
@@ -57,13 +57,12 @@ def _target_within_thresholds(cpu_usage: float, ram_usage: float, swap_usage: fl
 
 def build_candidate_pairs(
 	host_metrics: list[HostMetricSnapshot],
-	overloaded_hosts: list[HostDeviation],
 	vm_inventory: list[VMInventory],
 	vm_host_rules: list[VMHostAffinityRule],
 	vm_vm_rules: list[VMAffinityRule],
 ) -> list[MigrationCandidate]:
 	metric_map = _host_metric_map(host_metrics)
-	overloaded_host_names = {item.host for item in overloaded_hosts}
+	source_host_names = {vm.current_host for vm in vm_inventory}
 
 	if not metric_map or not vm_inventory:
 		return []
@@ -72,12 +71,11 @@ def build_candidate_pairs(
 	for vm in vm_inventory:
 		host_to_vms[vm.current_host].append(vm)
 
-	healthy_hosts = [host for host in metric_map if host not in overloaded_host_names]
-	if not healthy_hosts:
+	if not metric_map:
 		return []
 
 	raw_candidates: list[MigrationCandidate] = []
-	for source_host in overloaded_host_names:
+	for source_host in source_host_names:
 		source_metric = metric_map.get(source_host)
 		if source_metric is None:
 			continue
@@ -85,7 +83,7 @@ def build_candidate_pairs(
 		for vm in host_to_vms.get(source_host, []):
 			source_cpu_after, source_ram_after, source_swap_after = _project_source_usage(source_metric, vm)
 			source_projected_pressure = _weighted_pressure(source_cpu_after, source_ram_after, source_swap_after)
-			for target_host in healthy_hosts:
+			for target_host in metric_map:
 				if target_host == source_host:
 					continue
 				target_metric = metric_map.get(target_host)

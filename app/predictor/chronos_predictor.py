@@ -9,9 +9,7 @@ from app.predictor.feature_builder import build_chronos_history_df
 from app.utils.logger import get_logger
 from chronos import BaseChronosPipeline, Chronos2Pipeline
 
-
 logger = get_logger(__name__)
-
 
 class ChronosPredictor:
 	def __init__(self) -> None:

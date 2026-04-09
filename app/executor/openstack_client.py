@@ -59,3 +59,6 @@ class OpenStackClient:
 			block_migration=False,
 			disk_over_commit=False,
 		)
+
+		# Wait for the vm to be in status active again after migration
+		self.connection.compute.wait_for_server(server, status="ACTIVE", failures=["ERROR"], interval=5, wait=300)
