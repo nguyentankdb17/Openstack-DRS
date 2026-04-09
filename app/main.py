@@ -35,8 +35,8 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler stopped")
 
 def create_app() -> FastAPI:
-    #app = FastAPI(lifespan=lifespan)
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
+    # app = FastAPI()
     setup_logging(settings.app.log_level)
     setup_middleware(app)
     app.include_router(monitor_router, prefix="/api/v1")

@@ -108,9 +108,10 @@ def _execute_rebalance_cycle(current_decision):
 
         migration_plan = migration_planner.build_plan(
             host_metrics=host_metrics,
-            overloaded_hosts=current_decision.unbalanced_hosts,
+            overloaded_hosts=[],
             vm_inventory=vm_inventory,
             current_cluster_imbalance=current_decision.current_cluster_imbalance,
+            inventory_payload=combined_inventory,
         )
         plan_decision = build_migration_plan_decision(migration_plan)
         logger.info(
