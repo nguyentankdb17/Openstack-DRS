@@ -50,7 +50,7 @@ export function Sidebar() {
           OpenStack DRS
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Dynamic Resources Scheduler
+          Distributed Resource Scheduler
         </p>
       </div>
 

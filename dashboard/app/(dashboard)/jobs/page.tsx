@@ -232,12 +232,6 @@ export default function JobsPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
           <div>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">Created At</p>
-            <p className="font-medium text-gray-900 dark:text-white">
-              Runtime configuration is dynamic
-            </p>
-          </div>
-          <div>
             <p className="text-gray-600 dark:text-gray-400 mb-2">Last Updated</p>
             <p className="font-medium text-gray-900 dark:text-white">
               {formatDate(new Date())}
@@ -247,12 +241,6 @@ export default function JobsPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-2">Job ID</p>
             <p className="font-medium text-gray-900 dark:text-white font-mono text-xs">
               {jobStatus.id}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">Configuration Version</p>
-            <p className="font-medium text-gray-900 dark:text-white">
-              v2.1.0
             </p>
           </div>
         </div>
