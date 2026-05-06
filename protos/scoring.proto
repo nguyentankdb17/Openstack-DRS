@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package drs.scoring;
+
+service ScoringService {
+  rpc ScoreCluster (ScoreClusterRequest) returns (ScoreClusterResponse) {}
+  rpc ScoreHost (ScoreHostRequest) returns (ScoreHostResponse) {}
+}
+
+message ScoreClusterRequest {}
+
+message ScoreClusterResponse {
+  double score = 1;
+}
+
+message ScoreHostRequest {
+  string host_id = 1;
+}
+
+message ScoreHostResponse {
+  double score = 1;
+}

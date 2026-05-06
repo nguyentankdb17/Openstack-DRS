@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package drs.analytics;
+
+service AnalyticsService {
+  rpc Predict (PredictRequest) returns (PredictResponse) {}
+  rpc BuildFeatures (BuildFeaturesRequest) returns (BuildFeaturesResponse) {}
+}
+
+message PredictRequest {
+  string host_id = 1;
+  string metric = 2;
+  int32 horizon_minutes = 3;
+}
+
+message PredictResponse {
+  repeated double values = 1;
+  string model = 2;
+}
+
+message BuildFeaturesRequest {
+  string host_id = 1;
+}
+
+message BuildFeaturesResponse {
+  string status = 1;
+}

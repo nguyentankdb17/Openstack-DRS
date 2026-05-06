@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package drs.collector;
+
+service CollectorService {
+  rpc CollectMetrics (CollectMetricsRequest) returns (CollectMetricsResponse) {}
+  rpc CollectEvents (CollectEventsRequest) returns (CollectEventsResponse) {}
+}
+
+message CollectMetricsRequest {}
+
+message CollectMetricsResponse {
+  string status = 1;
+}
+
+message CollectEventsRequest {}
+
+message CollectEventsResponse {
+  string status = 1;
+}

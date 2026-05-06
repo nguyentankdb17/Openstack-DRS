@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package drs.engine;
+
+service EngineService {
+  rpc ComputeDecision (ComputeDecisionRequest) returns (ComputeDecisionResponse) {}
+  rpc ExecuteMigration (ExecuteMigrationRequest) returns (ExecuteMigrationResponse) {}
+}
+
+message ComputeDecisionRequest {}
+
+message ComputeDecisionResponse {
+  string status = 1;
+}
+
+message ExecuteMigrationRequest {
+  string migration_id = 1;
+}
+
+message ExecuteMigrationResponse {
+  string status = 1;
+}
