@@ -1,0 +1,79 @@
+# .dockerignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.tox/
+*.so
+.venv
+
+# Frontend dependencies and artifacts
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/dist/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+
+# Testing and coverage
+.coverage
+htmlcov/
+.hypothesis/
+functional_tests/
+
+# Project specific
+.env
+.env.local
+.env.*.local
+data/
+logs/
+*.log
+*.lock
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+README*
+
+# Data files
+*.csv
+lightning_logs/
+AutogluonModels/
+
+# Node (dashboard)
+node_modules/
+.next/
+dist/

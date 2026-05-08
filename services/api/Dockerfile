@@ -6,7 +6,8 @@ RUN pip install --no-cache-dir grpcio-tools
 
 COPY protos/ ./protos/
 
-RUN python -m grpc_tools.protoc \
+RUN mkdir -p generated && \
+    python -m grpc_tools.protoc \
     -I protos \
     --python_out generated \
     --grpc_python_out generated \
@@ -18,7 +19,7 @@ FROM python:3.12-slim AS wheel-builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev \
+    gcc libpq-dev libfreetype6-dev libjpeg-dev libpng-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

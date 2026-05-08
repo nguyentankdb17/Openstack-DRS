@@ -3,7 +3,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+    gcc libpq-dev libfreetype6-dev libjpeg-dev libpng-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
