@@ -7,125 +7,119 @@ from app import config
 from app.core.constants import CPU_METRIC, RAM_METRIC, SWAP_METRIC
 from app.predictor.feature_builder import build_chronos_history_df
 from app.utils.logger import get_logger
-from chronos import BaseChronosPipeline, Chronos2Pipeline
+from autogluon.timeseries import TimeSeriesDataFrame
+from autogluon.timeseries import TimeSeriesPredictor as AGPredictor
 
 logger = get_logger(__name__)
 
+
 class ChronosPredictor:
-	def __init__(self) -> None:
-		self.model_name = config.CHRONOS_MODEL_NAME
-		self.device = config.CHRONOS_DEVICE
-		self._pipeline = None
-		self._load_attempted = False
+    def __init__(self) -> None:
+        self.model_path = config.CHRONOS_FINETUNED_MODEL_PATH
+        self._pipeline: AGPredictor | None = None
 
-	def _split_item_id(self, item_id: str) -> tuple[str | None, str]:
-		if ":" in item_id:
-			host, metric = item_id.split(":", 1)
-			return host, metric
-		return None, item_id
+    # ------------------------------------------------------------------ #
+    #  Model loading                                                       #
+    # ------------------------------------------------------------------ #
 
-	def _try_load(self) -> None:
-		if self._load_attempted:
-			return
-		self._load_attempted = True
+    def _load(self) -> None:
+        """Load the fine-tuned AutoGluon/Chronos model once."""
+        if self._pipeline is not None:
+            return
+        logger.info("Loading fine-tuned Chronos model from: %s", self.model_path)
+        self._pipeline = AGPredictor.load(self.model_path)
+        logger.info("Model loaded successfully.")
 
-		try:
-			self._pipeline: Chronos2Pipeline = BaseChronosPipeline.from_pretrained(
-				self.model_name,
-				device_map=self.device,
-			)
-			logger.info("Chronos model loaded: %s", self.model_name)
+    # ------------------------------------------------------------------ #
+    #  Core prediction                                                     #
+    # ------------------------------------------------------------------ #
 
-		except Exception as e:
-			logger.exception("Failed to load Chronos model: %s", e)
-			self._pipeline = None
+    def _forecast_one_host(self, host_chronos_history: pd.DataFrame) -> dict[pd.Timestamp, dict[str, float]]:
+        """
+        Run AutoGluon prediction for a single host.
 
-	def _naive_predict(self, history: pd.Series, steps: int) -> list[float]:
-		if history.empty:
-			return [0.0] * steps
-		window = history.tail(min(5, len(history)))
-		avg = float(window.mean())
-		return [max(avg, 0.0)] * steps
+        Parameters
+        ----------
+        host_chronos_history : long-format DataFrame with columns
+            [item_id, timestamp, target] — one row per (metric, time-step).
 
-	def predict(self, history_df: pd.DataFrame, future_df: pd.DataFrame) -> pd.DataFrame:
-		if future_df.empty:
-			return future_df
+        Returns
+        -------
+        Nested dict {timestamp -> {metric -> predicted_value}}
+        """
+        # Ensure timezone-naive timestamps (AutoGluon requirement)
+        ts_input = host_chronos_history.copy()
+        if ts_input["timestamp"].dtype != "datetime64[ns]":
+            ts_input["timestamp"] = pd.to_datetime(ts_input["timestamp"]).dt.tz_localize(None)
 
-		self._try_load()
-		output_rows: list[dict] = []
+        # Wrap in AutoGluon's TimeSeriesDataFrame
+        ts_df = TimeSeriesDataFrame.from_data_frame(
+            ts_input,
+            id_column="item_id",
+            timestamp_column="timestamp",
+        )
 
-		if "item_id" in future_df.columns:
-			future_work_df = future_df.copy()
-			future_work_df[["host", "metric"]] = future_work_df["item_id"].apply(
-				lambda item_id: pd.Series(self._split_item_id(str(item_id)))
-			)
-			if future_work_df["host"].isna().any():
-				unique_hosts = history_df["host"].dropna().unique()
-				if len(unique_hosts) == 1:
-					future_work_df["host"] = future_work_df["host"].fillna(unique_hosts[0])
-		else:
-			future_work_df = future_df.copy()
+        # Predict → reset index so item_id / timestamp become plain columns
+        forecast_df = self._pipeline.predict(ts_df).reset_index()
 
-		for host, host_future in future_work_df.groupby("host"):
-			host_history = history_df[history_df["host"] == host].sort_values("timestamp")
-			host_chronos_history = build_chronos_history_df(host_history)
-			host_future = host_future.sort_values("timestamp")
-			host_timestamps = host_future.drop_duplicates(subset=["timestamp"])[["timestamp", "running_vm"]]
-			steps = len(host_timestamps)
-			if steps == 0:
-				continue
+        # Normalise the prediction column name to "predictions"
+        pred_cols = [c for c in forecast_df.columns if c not in ("item_id", "timestamp")]
+        rename_col = "mean" if "mean" in pred_cols else pred_cols[0]
+        forecast_df = forecast_df.rename(columns={rename_col: "predictions"})[
+            ["item_id", "timestamp", "predictions"]
+        ]
 
-			if self._pipeline is not None:
-				try:
-					forecast_df = self._pipeline.predict_df(
-						df=host_chronos_history,
-						future_df=host_future[["item_id", "timestamp", "running_vm"]],
-						id_column="item_id",
-						timestamp_column="timestamp",
-						target="target",
-						prediction_length=steps,
-						quantile_levels=[0.5],
-						batch_size=256,
-						context_length=None,
-						validate_inputs=False,
-					)
-					forecast_df["metric"] = forecast_df["item_id"].apply(lambda item_id: self._split_item_id(str(item_id))[1])
-					forecast_pivot = forecast_df.pivot_table(
-						index="timestamp",
-						columns="metric",
-						values="predictions",
-						aggfunc="first",
-					).reset_index()
-					forecast_pivot = forecast_pivot.merge(host_timestamps, on="timestamp", how="left")
+        # Derive metric name from item_id ('host:metric' → 'metric')
+        forecast_df["metric"] = forecast_df["item_id"].apply(
+            lambda x: x.split(":", 1)[1] if ":" in x else x
+        )
 
-					for _, row in forecast_pivot.sort_values("timestamp").iterrows():
-						output_rows.append(
-							{
-								"timestamp": row["timestamp"],
-								"host": host,
-								CPU_METRIC: float(np.clip(row.get(CPU_METRIC, 0.0), 0, 100)),
-								RAM_METRIC: float(np.clip(row.get(RAM_METRIC, 0.0), 0, 100)),
-								SWAP_METRIC: float(np.clip(row.get(SWAP_METRIC, 0.0), 0, 100)),
-								"running_vm": float(row["running_vm"]),
-							}
-						)
-					continue
-				except Exception as exc:  # pylint: disable=broad-except
-					logger.warning("Chronos inference failed for host %s, using fallback: %s", host, exc)
+        # Build {timestamp -> {metric -> value}} for O(1) look-up
+        result: dict[pd.Timestamp, dict[str, float]] = {}
+        for row in forecast_df.itertuples(index=False):
+            result.setdefault(row.timestamp, {})[row.metric] = row.predictions
 
-			cpu_values = self._naive_predict(host_chronos_history.loc[host_chronos_history["item_id"] == CPU_METRIC, "target"], steps)
-			ram_values = self._naive_predict(host_chronos_history.loc[host_chronos_history["item_id"] == RAM_METRIC, "target"], steps)
-			swap_values = self._naive_predict(host_chronos_history.loc[host_chronos_history["item_id"] == SWAP_METRIC, "target"], steps)
-			for idx, (_, row) in enumerate(host_timestamps.iterrows()):
-				output_rows.append(
-					{
-						"timestamp": row["timestamp"],
-						"host": host,
-						CPU_METRIC: float(np.clip(cpu_values[idx], 0, 100)),
-						RAM_METRIC: float(np.clip(ram_values[idx], 0, 100)),
-						SWAP_METRIC: float(np.clip(swap_values[idx], 0, 100)),
-						"running_vm": float(row["running_vm"]),
-					}
-				)
+        return result
 
-		return pd.DataFrame(output_rows)
+    # ------------------------------------------------------------------ #
+    #  Public API                                                          #
+    # ------------------------------------------------------------------ #
+
+    def predict(self, history_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate resource-usage forecasts for every host in history_df.
+
+        Parameters
+        ----------
+        history_df : raw historical observations with columns
+            [host, timestamp, <metric columns>, ...]
+
+        Returns
+        -------
+        DataFrame with columns:
+            [timestamp, host, CPU_METRIC, RAM_METRIC, SWAP_METRIC]
+        """
+        self._load()
+
+        output_rows: list[dict] = []
+
+        for host, host_history in history_df.groupby("host"):
+            # Build the Chronos-style long-format history for this host
+            host_chronos_history = build_chronos_history_df(
+                host_history.sort_values("timestamp")
+            )
+
+            # Run model forecast
+            forecast = self._forecast_one_host(host_chronos_history)
+
+            # Flatten forecast dict into output rows
+            for timestamp, metrics in forecast.items():
+                output_rows.append({
+                    "timestamp": timestamp,
+                    "host":      host,
+                    CPU_METRIC:  float(np.clip(metrics.get(CPU_METRIC,  0.0), 0, 100)),
+                    RAM_METRIC:  float(np.clip(metrics.get(RAM_METRIC,  0.0), 0, 100)),
+                    SWAP_METRIC: float(np.clip(metrics.get(SWAP_METRIC, 0.0), 0, 100)),
+                })
+
+        return pd.DataFrame(output_rows)

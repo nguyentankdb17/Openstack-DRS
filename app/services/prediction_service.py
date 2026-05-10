@@ -20,5 +20,5 @@ def build_chronos_input(history_df: pd.DataFrame) -> pd.DataFrame:
 	return build_chronos_history_df(history_df)
 
 
-def predict_next_window(history_df: pd.DataFrame, future_df: pd.DataFrame) -> pd.DataFrame:
-	return _predictor.predict(history_df=history_df, future_df=future_df)
+def predict_next_window(history_df: pd.DataFrame) -> pd.DataFrame:
+	return _predictor.predict(history_df=history_df)

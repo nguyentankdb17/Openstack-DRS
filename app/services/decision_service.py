@@ -68,7 +68,7 @@ def evaluate_current(metrics_df: pd.DataFrame) -> ClusterDecision:
 
 def evaluate_predicted(pred_df: pd.DataFrame, current_score: float) -> ClusterDecision:
 	pred_score = compute_cluster_imbalance(
-		pred_df.groupby("host", as_index=False)[["cpu", "ram", "swap", "running_vm"]].mean(numeric_only=True)
+		pred_df.groupby("host", as_index=False)[["cpu", "ram", "swap"]].mean(numeric_only=True)
 	)
 
 	if pred_score > config.CLUSTER_IMBALANCE_THRESHOLD:

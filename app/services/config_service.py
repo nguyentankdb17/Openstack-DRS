@@ -28,6 +28,23 @@ ALLOWED_RUNTIME_CONFIG_KEYS: set[str] = {
 	"MAX_MIGRATIONS_PER_CYCLE",
 	"CPU_ALLOCATION_RATIO",
 	"RAM_ALLOCATION_RATIO",
+	"DECISION_POLICY",
+	"RL_MODEL_PATH",
+	"RL_REPLAY_BUFFER_SIZE",
+	"RL_BATCH_SIZE",
+	"RL_MIN_REPLAY_SIZE",
+	"RL_LEARNING_RATE",
+	"RL_HIDDEN_DIMS",
+	"RL_DEVICE",
+	"RL_GAMMA",
+	"RL_EPSILON_START",
+	"RL_EPSILON_END",
+	"RL_EPSILON_DECAY",
+	"RL_TRAIN_STEPS_PER_UPDATE",
+	"RL_TARGET_UPDATE_INTERVAL",
+	"RL_TARGET_SOFT_UPDATE_TAU",
+	"RL_TRAINING_EPISODES_PER_STEP",
+	"RL_PERSIST_MODEL",
 	"CHRONOS_MODEL_NAME",
 	"CHRONOS_DEVICE",
 	"HOST_CPU_QUERY",
@@ -94,5 +111,19 @@ def _coerce_value(raw_value: Any, current_value: Any) -> Any:
 
 	if isinstance(current_value, str):
 		return str(raw_value)
+
+	if isinstance(current_value, tuple):
+		if isinstance(raw_value, str):
+			parts = [part.strip() for part in raw_value.split(",") if part.strip()]
+			try:
+				return tuple(int(part) for part in parts if int(part) > 0)
+			except (TypeError, ValueError) as exc:
+				raise ValueError(f"Invalid tuple value: {raw_value}") from exc
+		if isinstance(raw_value, list):
+			try:
+				return tuple(int(part) for part in raw_value if int(part) > 0)
+			except (TypeError, ValueError) as exc:
+				raise ValueError(f"Invalid tuple value: {raw_value}") from exc
+		raise ValueError(f"Invalid tuple value: {raw_value}")
 
 	raise ValueError("Unsupported config value type")
