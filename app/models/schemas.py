@@ -161,3 +161,24 @@ class RuntimeConfigResponse(BaseModel):
 
 class SchedulerJobControlResponse(BaseModel):
 	data: dict[str, Any] = Field(default_factory=dict)
+
+
+class PendingPlan(BaseModel):
+	"""A migration plan waiting for manual approval."""
+	plan_id: str
+	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+	trigger_source: str
+	candidates: list[MigrationCandidate] = Field(default_factory=list)
+	current_cluster_imbalance: float | None = None
+	details: str | None = None
+
+
+class ApproveRequest(BaseModel):
+	"""Body for POST /api/v1/plan/approve.
+
+	Leave candidate_ids empty to approve ALL candidates in the pending plan.
+	"""
+	candidate_ids: list[str] = Field(
+		default_factory=list,
+		description="VM IDs to approve. Empty list = approve all.",
+	)

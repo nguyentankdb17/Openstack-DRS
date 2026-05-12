@@ -3,6 +3,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(key: str, default: str = "false") -> bool:
+    value = os.getenv(key, default).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _env_int_tuple(key: str, default: str = "64,32") -> tuple[int, ...]:
+    raw_value = os.getenv(key, default)
+    parts = [part.strip() for part in raw_value.split(",") if part.strip()]
+    values = tuple(int(part) for part in parts if int(part) > 0)
+    return values or (64, 32)
+
 PROMETHEUS_BASE_URL = os.getenv("PROMETHEUS_BASE_URL", "http://localhost:9090")
 PROMETHEUS_USERNAME = os.getenv("PROMETHEUS_USERNAME", "admin")
 PROMETHEUS_PASSWORD = os.getenv("PROMETHEUS_PASSWORD", "admin")
@@ -27,12 +39,26 @@ MIGRATION_TARGET_MAX_RAM_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_RAM_USAGE
 MIGRATION_TARGET_MAX_SWAP_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_SWAP_USAGE", "80"))
 MIGRATION_MIN_NET_BENEFIT = float(os.getenv("MIGRATION_MIN_NET_BENEFIT", "0.1"))
 MAX_MIGRATIONS_PER_CYCLE = int(os.getenv("MAX_MIGRATIONS_PER_CYCLE", "1"))
+
+# Alertmanager webhook integration
+# ALERTMANAGER_WEBHOOK_TOKEN: shared secret sent in X-Webhook-Token or Authorization: Bearer header.
+#   Leave empty to disable token auth (not recommended for production).
+# ALERTMANAGER_TRIGGER_ALERTS: comma-separated alert names that trigger the decision flow.
+#   Leave empty to trigger on ANY firing alert.
+ALERTMANAGER_WEBHOOK_TOKEN = os.getenv("ALERTMANAGER_WEBHOOK_TOKEN", "")
+ALERTMANAGER_TRIGGER_ALERTS = os.getenv("ALERTMANAGER_TRIGGER_ALERTS", "")
+
+# Migration approval mode: "manual" (default) or "auto"
+# - manual: system builds a plan but waits for human approval via POST /api/v1/plan/approve
+# - auto:   system executes migrations immediately after planning
+APPROVAL_MODE = os.getenv("APPROVAL_MODE", "manual").strip().lower()
 CPU_ALLOCATION_RATIO = float(os.getenv("CPU_ALLOCATION_RATIO", "4"))
 RAM_ALLOCATION_RATIO = float(os.getenv("RAM_ALLOCATION_RATIO", "1"))
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 CHRONOS_MODEL_NAME = os.getenv("CHRONOS_MODEL_NAME", "amazon/chronos-2")
 CHRONOS_DEVICE = os.getenv("CHRONOS_DEVICE", "cpu")
+CHRONOS_FINETUNED_MODEL_PATH = os.getenv("CHRONOS_FINETUNED_MODEL_PATH", "")
 
 OPENSTACK_AUTH_URL = os.getenv("OPENSTACK_AUTH_URL", "")
 OPENSTACK_USERNAME = os.getenv("OPENSTACK_USERNAME", "")

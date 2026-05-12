@@ -111,6 +111,60 @@ def _all_raw_candidates(inventory_payload: list[dict[str, Any]]) -> list[Migrati
 	return raw_candidates
 
 
+def _select_greedy_candidate(
+	*,
+	allowed_candidates: list[MigrationCandidate],
+	working_inventory: list[dict[str, Any]],
+	current_imbalance: float,
+) -> tuple[MigrationCandidate | None, list[dict[str, Any]] | None, float]:
+	best_candidate: MigrationCandidate | None = None
+	best_inventory: list[dict[str, Any]] | None = None
+	best_imbalance = current_imbalance
+
+	for candidate in allowed_candidates:
+		simulation = simulate_migration(
+			inventory=working_inventory,
+			vm_id=candidate.vm_id,
+			source_host=candidate.source_host,
+			target_host=candidate.target_host,
+		)
+		if simulation is None:
+			continue
+		logger.debug(
+			"simulation result: vm_id=%s source=%s target=%s imbalance_before=%.6f imbalance_after=%.6f",
+			candidate.vm_id,
+			candidate.source_host,
+			candidate.target_host,
+			current_imbalance,
+			simulation.cluster_imbalance,
+		)
+
+		if simulation.cluster_imbalance >= best_imbalance:
+			continue
+
+		candidate_score = current_imbalance - simulation.cluster_imbalance
+		best_candidate = candidate.model_copy(
+			update={
+				"score_breakdown": {
+					"imbalance_before": current_imbalance,
+					"imbalance_after": simulation.cluster_imbalance,
+					"imbalance_reduction": candidate_score,
+				}
+			}
+		)
+		best_inventory = simulation.inventory
+		best_imbalance = simulation.cluster_imbalance
+		logger.debug(
+			"new best greedy candidate: vm_id=%s source=%s target=%s reduction=%.6f",
+			candidate.vm_id,
+			candidate.source_host,
+			candidate.target_host,
+			candidate_score,
+		)
+
+	return best_candidate, best_inventory, best_imbalance
+
+
 @dataclass(slots=True)
 class MigrationPlanner:
 	def build_plan(
@@ -179,50 +233,29 @@ class MigrationPlanner:
 				sorted(used_vm_ids),
 				current_imbalance,
 			)
-			best_candidate: MigrationCandidate | None = None
-			best_inventory: list[dict[str, Any]] | None = None
-			best_imbalance = current_imbalance
 
-			for candidate in allowed_candidates:
-				simulation = simulate_migration(
-					inventory=working_inventory,
-					vm_id=candidate.vm_id,
-					source_host=candidate.source_host,
-					target_host=candidate.target_host,
+			decision_policy = str(getattr(config, "DECISION_POLICY", "greedy")).strip().lower()
+			if decision_policy == "rl":
+				best_candidate, best_inventory, best_imbalance = train_and_select_candidate(
+					candidates=allowed_candidates,
+					working_inventory=working_inventory,
+					current_imbalance=current_imbalance,
 				)
-				if simulation is None:
-					continue
-				logger.debug(
-					"simulation result: vm_id=%s source=%s target=%s imbalance_before=%.6f imbalance_after=%.6f",
-					candidate.vm_id,
-					candidate.source_host,
-					candidate.target_host,
-					current_imbalance,
-					simulation.cluster_imbalance,
-				)
-
-				if simulation.cluster_imbalance >= best_imbalance:
-					continue
-
-				candidate_score = current_imbalance - simulation.cluster_imbalance
-				best_candidate = candidate.model_copy(
-					update={
-						"score_breakdown": {
-							"imbalance_before": current_imbalance,
-							"imbalance_after": simulation.cluster_imbalance,
-							"imbalance_reduction": candidate_score,
-						}
-					}
-				)
-				best_inventory = simulation.inventory
-				best_imbalance = simulation.cluster_imbalance
-				logger.debug(
-					"new best candidate at step=%d: vm_id=%s source=%s target=%s reduction=%.6f",
-					current_step,
-					candidate.vm_id,
-					candidate.source_host,
-					candidate.target_host,
-					candidate_score,
+				if best_candidate is None or best_inventory is None:
+					logger.debug(
+						"rl policy returned no improving candidate at step=%d, falling back to greedy",
+						current_step,
+					)
+					best_candidate, best_inventory, best_imbalance = _select_greedy_candidate(
+						allowed_candidates=allowed_candidates,
+						working_inventory=working_inventory,
+						current_imbalance=current_imbalance,
+					)
+			else:
+				best_candidate, best_inventory, best_imbalance = _select_greedy_candidate(
+					allowed_candidates=allowed_candidates,
+					working_inventory=working_inventory,
+					current_imbalance=current_imbalance,
 				)
 
 			if best_candidate is None or best_inventory is None:
@@ -247,8 +280,9 @@ class MigrationPlanner:
 			)
 
 		if planned_candidates:
+			strategy = str(getattr(config, "DECISION_POLICY", "greedy")).strip().lower()
 			details = (
-				"Migration candidates selected greedily by maximum imbalance reduction "
+				f"Migration candidates selected by strategy={strategy} "
 				f"({baseline_imbalance:.4f} -> {current_imbalance:.4f})"
 			)
 		else:

@@ -14,6 +14,8 @@ from app.api.inventory import router as inventory_router
 from app.api.constraints import router as constraints_router
 from app.api.cycle_history import router as cycle_history_router
 from app.api.configuration import router as configuration_router
+from app.api.plan import router as plan_router
+from app.api.webhook import router as webhook_router
 from app.db.postgres import initialize_database
 from app.middleware import setup_middleware
 from app.core import settings
@@ -49,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(constraints_router, prefix="/api/v1")
     app.include_router(cycle_history_router, prefix="/api/v1")
     app.include_router(configuration_router, prefix="/api/v1")
+    app.include_router(plan_router, prefix="/api/v1")
+    app.include_router(webhook_router, prefix="/api/v1")
     return app
 
 app = create_app()
@@ -60,5 +64,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.app.environment == "development",
-        log_level="DEBUG",
+        log_level="debug",
     )

@@ -23,6 +23,7 @@ from app.services.decision_service import (
     evaluate_predicted,
 )
 from app.services.metrics_service import collect_30m_metrics, collect_5m_metrics
+from app.services.pending_plan_store import set_pending
 from app.services.prediction_service import build_chronos_input, build_predict_input, predict_next_window
 from app.utils.logger import get_logger
 
@@ -90,7 +91,7 @@ def _resolve_next_run_time() -> datetime | None:
     return None
 
 
-def _execute_rebalance_cycle(current_decision):
+def _execute_rebalance_cycle(current_decision, *, trigger_source: str = "scheduler"):
 	if not rebalance_lock.acquire(blocking=False):
 		logger.info("Rebalance cycle already in progress, skipping this tick")
 		return None, [], []
@@ -169,6 +170,19 @@ def _execute_rebalance_cycle(current_decision):
 			logger.info("No feasible migration candidates found")
 			return plan_decision, [], []
 
+		# ── Approval mode gate ──────────────────────────────────────────────
+		approval_mode = str(getattr(config, "APPROVAL_MODE", "manual")).strip().lower()
+		if approval_mode != "auto":
+			pending = set_pending(migration_plan, trigger_source=trigger_source)
+			logger.info(
+				"APPROVAL_MODE=manual — plan stored as pending (plan_id=%s, candidates=%d). "
+				"Approve via POST /api/v1/plan/approve",
+				pending.plan_id,
+				len(migration_plan.candidates),
+			)
+			return plan_decision, migration_plan.candidates, []
+		# ───────────────────────────────────────────────────────────────────
+
 		max_migrations = max(1, int(config.MAX_MIGRATIONS_PER_CYCLE))
 		selected_candidates = migration_plan.candidates[:max_migrations]
 		execution_decisions = []
@@ -232,8 +246,7 @@ def _monitor_cluster_sync():
 			return
 
 		history_df = collect_30m_metrics()
-		future_df = build_predict_input(history_df)
-		pred_df = predict_next_window(history_df, future_df)
+		pred_df = predict_next_window(history_df)
 
 		predicted_decision = evaluate_predicted(
 			pred_df=pred_df,
@@ -260,7 +273,7 @@ def _monitor_cluster_sync():
 			planned_candidates=[],
 			executed_candidates=[],
 		)
-	except Exception as exc:  # pylint: disable=broad-except
+	except Exception as exc:
 		decision = build_error_decision(str(exc))
 		logger.exception("Monitor cycle failed: %s", exc)
 		logger.info("Monitor result: %s", decision.model_dump())
