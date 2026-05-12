@@ -103,3 +103,12 @@ export interface ClusterDecision {
   } | null;
   details: string | null;
 }
+
+export interface PendingPlan {
+  plan_id: string;
+  created_at: DateLike;
+  trigger_source: string;
+  candidates: MigrationCandidate[];
+  current_cluster_imbalance: number | null;
+  details: string | null;
+}

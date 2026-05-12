@@ -7,6 +7,7 @@ import {
   MetricPoint,
   MigrationCandidate,
   MigrationConstraint,
+  PendingPlan,
 } from "@/lib/types";
 
 const API_BASE_URL =
@@ -343,4 +344,26 @@ export function buildMetricsFromCycles(cycles: Cycle[]): CycleMetrics {
     average_migration_duration: averageMigrationDuration,
     cycles_per_hour: cyclesPerHour,
   };
+}
+
+export async function fetchPendingPlan(): Promise<PendingPlan | null> {
+  const response = await request<{ pending: boolean; plan: PendingPlan | null }>(
+    "/plan/pending"
+  );
+  if (!response.pending || !response.plan) return null;
+  return {
+    ...response.plan,
+    created_at: new Date(response.plan.created_at as string),
+    candidates: (response.plan.candidates ?? []).map(mapCandidate),
+  };
+}
+
+export async function approvePendingPlan(
+  candidateIds: string[] = []
+): Promise<void> {
+  await request("/plan/approve", "POST", { candidate_ids: candidateIds });
+}
+
+export async function rejectPendingPlan(): Promise<void> {
+  await request("/plan/pending", "DELETE");
 }

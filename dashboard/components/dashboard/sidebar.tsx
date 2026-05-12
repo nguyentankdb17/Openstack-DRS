@@ -10,6 +10,7 @@ import {
   Cog,
   Lock,
 } from "lucide-react";
+import { ActiveJobPanel } from "@/components/dashboard/active-job-panel";
 
 const navItems = [
   {
@@ -78,6 +79,9 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Active Job Panel */}
+      <ActiveJobPanel />
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-800">
