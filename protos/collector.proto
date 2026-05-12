@@ -11,10 +11,14 @@ message CollectMetricsRequest {}
 
 message CollectMetricsResponse {
   string status = 1;
+  string message = 2;
 }
 
 message CollectEventsRequest {}
 
 message CollectEventsResponse {
   string status = 1;
+  bool has_events = 2;
+  int32 event_count = 3;
+  repeated string events = 4;
 }

@@ -5,12 +5,32 @@ package drs.engine;
 service EngineService {
   rpc ComputeDecision (ComputeDecisionRequest) returns (ComputeDecisionResponse) {}
   rpc ExecuteMigration (ExecuteMigrationRequest) returns (ExecuteMigrationResponse) {}
+  rpc GetLatestDecision (GetLatestDecisionRequest) returns (GetLatestDecisionResponse) {}
+  rpc GetPendingPlan (GetPendingPlanRequest) returns (GetPendingPlanResponse) {}
+  rpc RejectPendingPlan (RejectPendingPlanRequest) returns (RejectPendingPlanResponse) {}
+  rpc ApprovePendingPlan (ApprovePendingPlanRequest) returns (ApprovePendingPlanResponse) {}
 }
 
-message ComputeDecisionRequest {}
+message ComputeDecisionRequest {
+  string trigger_source = 1;
+}
 
 message ComputeDecisionResponse {
   string status = 1;
+  repeated MigrationCandidate candidates = 2;
+  string plan_id = 3;
+  int32 planned = 4;
+  int32 executed = 5;
+  string error = 6;
+}
+
+message MigrationCandidate {
+  string vm_id = 1;
+  string source_host = 2;
+  string target_host = 3;
+  double migration_cost = 4;
+  repeated string policy_reasons = 5;
+  string score_breakdown_json = 6;
 }
 
 message ExecuteMigrationRequest {
@@ -19,4 +39,38 @@ message ExecuteMigrationRequest {
 
 message ExecuteMigrationResponse {
   string status = 1;
+}
+
+message GetLatestDecisionRequest {}
+
+message GetLatestDecisionResponse {
+  string decision_json = 1;
+}
+
+message GetPendingPlanRequest {}
+
+message GetPendingPlanResponse {
+  bool pending = 1;
+  string plan_json = 2;
+}
+
+message RejectPendingPlanRequest {}
+
+message RejectPendingPlanResponse {
+  bool rejected = 1;
+  string plan_id = 2;
+  string status = 3;
+}
+
+message ApprovePendingPlanRequest {
+  repeated string candidate_ids = 1;
+}
+
+message ApprovePendingPlanResponse {
+  bool approved = 1;
+  string plan_id = 2;
+  int32 executed = 3;
+  string results_json = 4;
+  string status = 5;
+  string error = 6;
 }
