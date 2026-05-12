@@ -16,7 +16,7 @@ _pending: PendingPlan | None = None
 
 def set_pending(plan: MigrationPlan, trigger_source: str) -> PendingPlan:
     """Store a new pending plan, replacing any existing one."""
-    global _pending  # noqa: PLW0603
+    global _pending
     pending = PendingPlan(
         plan_id=str(uuid.uuid4()),
         trigger_source=trigger_source,
@@ -37,6 +37,6 @@ def get_pending() -> PendingPlan | None:
 
 def clear_pending() -> None:
     """Remove the pending plan (called after approval or rejection)."""
-    global _pending  # noqa: PLW0603
+    global _pending
     with _lock:
         _pending = None

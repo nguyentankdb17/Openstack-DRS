@@ -13,7 +13,7 @@ from app.scheduler.monitor_job import (
 	pause_monitor_job,
 	restart_monitor_job,
 )
-from app.services.config_service import get_runtime_config, update_runtime_config
+from app.domain.config_service import get_runtime_config, update_runtime_config
 
 
 router = APIRouter(tags=["configuration"])

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from app.models.schemas import CycleHistoryRecord
-from app.services.cycle_history_service import list_cycle_history
+from app.domain.cycle_history_service import list_cycle_history
 
 
 router = APIRouter(tags=["cycle-history"])

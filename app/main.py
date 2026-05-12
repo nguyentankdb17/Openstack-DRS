@@ -19,7 +19,6 @@ from app.api.webhook import router as webhook_router
 from app.db.postgres import initialize_database
 from app.middleware import setup_middleware
 from app.core import settings
-from app.scheduler.monitor_job import start_scheduler, stop_scheduler
 from app.utils.logger import get_logger, setup_logging
 
 
@@ -31,15 +30,7 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.app.log_level)
     initialize_database()
 
-    # Startup
-    scheduler = start_scheduler()
-    logger.info("Scheduler started")
-
     yield
-
-    # Shutdown
-    stop_scheduler(scheduler)
-    logger.info("Scheduler stopped")
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)

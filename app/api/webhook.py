@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
+import grpc
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
 
 from app import config
+from app.grpc import engine_pb2
+from app.clients.rpc_clients import engine_client
 from app.utils.logger import get_logger
 
 router = APIRouter(tags=["webhook"])
@@ -90,12 +92,24 @@ async def alertmanager_webhook(
 
 
 async def _run_rebalance_from_alert(alert_names: list[str]) -> None:
-    """Run the full monitor/decision cycle in a thread (same as the scheduler does)."""
-    from app.scheduler.monitor_job import _monitor_cluster_sync
-
+    """Trigger the engine gRPC service to run the full decision cycle."""
     logger.info("alertmanager_webhook: starting rebalance cycle triggered by alerts=%s", alert_names)
     try:
-        await asyncio.to_thread(_monitor_cluster_sync)
-        logger.info("alertmanager_webhook: rebalance cycle completed for alerts=%s", alert_names)
+        async with engine_client() as stub:
+            response = await stub.ComputeDecision(
+                engine_pb2.ComputeDecisionRequest(trigger_source="alertmanager"),
+                timeout=300,
+            )
+        logger.info(
+            "alertmanager_webhook: engine rebalance cycle completed for alerts=%s status=%s",
+            alert_names,
+            response.status,
+        )
+    except grpc.aio.AioRpcError as exc:
+        logger.exception(
+            "alertmanager_webhook: engine gRPC cycle failed for alerts=%s: %s",
+            alert_names,
+            exc.details() or exc.code().name,
+        )
     except Exception as exc:
         logger.exception("alertmanager_webhook: rebalance cycle failed for alerts=%s: %s", alert_names, exc)

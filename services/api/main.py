@@ -19,10 +19,11 @@ from app.api.inventory import router as inventory_router
 from app.api.constraints import router as constraints_router
 from app.api.cycle_history import router as cycle_history_router
 from app.api.configuration import router as configuration_router
+from app.api.plan import router as plan_router
+from app.api.webhook import router as webhook_router
 from app.db.postgres import initialize_database
 from app.middleware import setup_middleware
 from app.core import settings
-from app.scheduler.monitor_job import start_scheduler, stop_scheduler
 from app.utils.logger import get_logger, setup_logging
 
 
@@ -39,15 +40,7 @@ async def lifespan(app: FastAPI):
     initialize_database()
     logger.info("[API Service] Database initialized")
     
-    # Start scheduler
-    scheduler = start_scheduler()
-    logger.info("[API Service] Scheduler started")
-
     yield
-
-    # Shutdown
-    stop_scheduler(scheduler)
-    logger.info("[API Service] Scheduler stopped")
 
 
 def create_app() -> FastAPI:
@@ -68,6 +61,8 @@ def create_app() -> FastAPI:
     app.include_router(constraints_router, prefix="/api/v1", tags=["Constraints"])
     app.include_router(cycle_history_router, prefix="/api/v1", tags=["History"])
     app.include_router(configuration_router, prefix="/api/v1", tags=["Configuration"])
+    app.include_router(plan_router, prefix="/api/v1", tags=["Plan"])
+    app.include_router(webhook_router, prefix="/api/v1", tags=["Webhook"])
     
     @app.get("/health", tags=["Health"])
     async def health():

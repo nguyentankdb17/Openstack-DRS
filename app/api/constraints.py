@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import ConstraintRecord, VMHostConstraintUpsert, VMVMConstraintUpsert
-from app.services.constraint_service import (
+from app.domain.constraint_service import (
 	delete_constraint,
 	get_constraint,
 	list_constraints,

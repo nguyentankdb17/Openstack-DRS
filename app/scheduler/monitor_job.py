@@ -1,72 +1,12 @@
-import asyncio
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta, timezone
-import logging
-from threading import Lock
 
 from app import config
-from app.collector import has_recent_vm_events
-from app.decision.datasource.openstack_inventory import OpenStackInventoryDatasource
-from app.decision.datasource.prometheus_datasource import PrometheusDatasource
-from app.decision.planner.migration_planner import MigrationPlanner
-from app.executor.migration_executor import MigrationExecutor
-from app.models.schemas import ClusterDecision, MigrationCandidate
-from app.services.constraint_service import load_active_affinity_rules
-from app.services.cycle_history_service import record_cycle_history
-from app.services.decision_service import (
-    build_error_decision,
-    build_event_skip_decision,
-    build_migration_execution_decision,
-    build_migration_plan_decision,
-    evaluate_current,
-    evaluate_predicted,
-)
-from app.services.metrics_service import collect_30m_metrics, collect_5m_metrics
-from app.services.pending_plan_store import set_pending
-from app.services.prediction_service import build_chronos_input, build_predict_input, predict_next_window
 from app.utils.logger import get_logger
 
 scheduler = AsyncIOScheduler()
 logger = get_logger(__name__)
-prometheus_datasource = PrometheusDatasource()
-inventory_datasource = OpenStackInventoryDatasource()
-migration_planner = MigrationPlanner()
-migration_executor = MigrationExecutor()
-rebalance_lock = Lock()
 MONITOR_JOB_ID = "monitor_cluster_job"
-
-
-def _safe_load_affinity_rules():
-    try:
-        return load_active_affinity_rules()
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.exception("Failed to load constraints from database: %s", exc)
-        return [], []
-
-
-def _safe_record_cycle_history(
-    *,
-    cycle_started_at: datetime,
-    cycle_finished_at: datetime,
-    trigger_source: str,
-    decision: ClusterDecision,
-    planned_candidates: list[MigrationCandidate],
-    executed_candidates: list[MigrationCandidate],
-    error_message: str | None = None,
-) -> None:
-    try:
-        record_cycle_history(
-            cycle_started_at=cycle_started_at,
-            cycle_finished_at=cycle_finished_at,
-            trigger_source=trigger_source,
-            decision=decision,
-            planned_candidates=planned_candidates,
-            executed_candidates=executed_candidates,
-            error_message=error_message,
-        )
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.exception("Failed to write cycle history: %s", exc)
 
 
 def _resolve_next_run_time() -> datetime | None:
@@ -91,205 +31,19 @@ def _resolve_next_run_time() -> datetime | None:
     return None
 
 
-def _execute_rebalance_cycle(current_decision, *, trigger_source: str = "scheduler"):
-	if not rebalance_lock.acquire(blocking=False):
-		logger.info("Rebalance cycle already in progress, skipping this tick")
-		return None, [], []
-
-	try:
-		if current_decision.current_cluster_imbalance is None:
-			return None, [], []
-
-		if current_decision.current_cluster_imbalance <= config.CLUSTER_IMBALANCE_THRESHOLD and current_decision.predicted_cluster_imbalance <= config.CLUSTER_IMBALANCE_THRESHOLD:
-			return None, [], []
-
-		host_metrics = [
-			metric
-			for metric in prometheus_datasource.build_host_snapshots(
-				window_minutes=config.CHECK_EVENT_LOOKBACK_MINUTES,
-				step_seconds=config.PREDICTION_STEP_SECONDS,
-			)
-		]
-		vm_metrics = [
-			metric
-			for metric in prometheus_datasource.build_vm_snapshots(
-				window_minutes=config.CHECK_EVENT_LOOKBACK_MINUTES,
-				step_seconds=config.PREDICTION_STEP_SECONDS,
-			)
-		]
-		combined_inventory = inventory_datasource.build_inventory(host_metrics=host_metrics, vm_metrics=vm_metrics)
-		vm_inventory = inventory_datasource.extract_vm_inventory(combined_inventory)
-		vm_host_rules, vm_vm_rules = _safe_load_affinity_rules()
-
-		if logger.isEnabledFor(logging.DEBUG):
-			logger.debug(
-				"Combined inventory payload: %s",
-				combined_inventory,
-			)
-
-		host_metric_hosts = {metric.host for metric in host_metrics}
-		host_inventory_hosts = {item.get("hostname", "unknown") for item in combined_inventory}
-		vm_hosts = {vm.current_host for vm in vm_inventory}
-		unknown_vm_host_count = sum(1 for vm in vm_inventory if vm.current_host == "unknown")
-		logger.debug(
-			"Inventory diagnostics: host_metrics=%d vm_metrics=%d host_inventory=%d vm_inventory=%d unknown_vm_hosts=%d",
-			len(host_metrics),
-			len(vm_metrics),
-			len(combined_inventory),
-			len(vm_inventory),
-			unknown_vm_host_count,
-		)
-		logger.debug(
-			"Placement policies loaded: vm_host_rules=%d vm_vm_rules=%d",
-			len(vm_host_rules),
-			len(vm_vm_rules),
-		)
-		logger.debug(
-			"Inventory host alignment: metrics_only=%s inventory_only=%s vm_hosts=%s",
-			sorted(host_metric_hosts - host_inventory_hosts),
-			sorted(host_inventory_hosts - host_metric_hosts),
-			sorted(vm_hosts),
-		)
-
-		migration_plan = migration_planner.build_plan(
-			host_metrics=host_metrics,
-			vm_inventory=vm_inventory,
-			vm_host_rules=vm_host_rules,
-			vm_vm_rules=vm_vm_rules,
-			current_cluster_imbalance=current_decision.current_cluster_imbalance,
-			inventory_payload=combined_inventory,
-		)
-		plan_decision = build_migration_plan_decision(migration_plan)
-		logger.info(
-			"New migration plan created with %d candidates: %s",
-			len(migration_plan.candidates),
-			plan_decision.model_dump(),
-		)
-
-		if not migration_plan.candidates:
-			logger.info("No feasible migration candidates found")
-			return plan_decision, [], []
-
-		# ── Approval mode gate ──────────────────────────────────────────────
-		approval_mode = str(getattr(config, "APPROVAL_MODE", "manual")).strip().lower()
-		if approval_mode != "auto":
-			pending = set_pending(migration_plan, trigger_source=trigger_source)
-			logger.info(
-				"APPROVAL_MODE=manual — plan stored as pending (plan_id=%s, candidates=%d). "
-				"Approve via POST /api/v1/plan/approve",
-				pending.plan_id,
-				len(migration_plan.candidates),
-			)
-			return plan_decision, migration_plan.candidates, []
-		# ───────────────────────────────────────────────────────────────────
-
-		max_migrations = max(1, int(config.MAX_MIGRATIONS_PER_CYCLE))
-		selected_candidates = migration_plan.candidates[:max_migrations]
-		execution_decisions = []
-		for candidate_index, selected_candidate in enumerate(selected_candidates, start=1):
-			execution_result = migration_executor.execute(selected_candidate)
-			execution_decision = build_migration_execution_decision(
-				selected_candidate,
-				execution_result,
-				current_score=current_decision.current_cluster_imbalance,
-			)
-			execution_decisions.append(execution_decision)
-			logger.info(
-				"Migration execution decision [candidate %d/%d]: %s",
-				candidate_index,
-				len(selected_candidates),
-				execution_decision.model_dump(),
-			)
-
-		logger.info(
-			"Plan execution complete. Processed %d/%d candidates.",
-			len(selected_candidates),
-			len(migration_plan.candidates),
-		)
-		final_decision = execution_decisions[-1] if execution_decisions else plan_decision
-		return final_decision, migration_plan.candidates, selected_candidates
-	finally:
-		rebalance_lock.release()
-
-
-
-def _monitor_cluster_sync():
-	cycle_started_at = datetime.now(timezone.utc)
-	try:
-		has_events, events = has_recent_vm_events(config.CHECK_EVENT_LOOKBACK_MINUTES)
-		if has_events:
-			decision = build_event_skip_decision(events)
-			logger.info("Monitor result: %s", decision.model_dump())
-			_safe_record_cycle_history(
-				cycle_started_at=cycle_started_at,
-				cycle_finished_at=datetime.now(timezone.utc),
-				trigger_source="event_guard",
-				decision=decision,
-				planned_candidates=[],
-				executed_candidates=[],
-			)
-			return
-
-		metrics_df = collect_5m_metrics()
-		current_decision = evaluate_current(metrics_df)
-		logger.info("Current window decision: %s", current_decision.model_dump())
-		if current_decision.current_cluster_imbalance and current_decision.current_cluster_imbalance > config.CLUSTER_IMBALANCE_THRESHOLD:
-			final_decision, planned_candidates, executed_candidates = _execute_rebalance_cycle(current_decision)
-			_safe_record_cycle_history(
-				cycle_started_at=cycle_started_at,
-				cycle_finished_at=datetime.now(timezone.utc),
-				trigger_source="current_window",
-				decision=final_decision or current_decision,
-				planned_candidates=planned_candidates,
-				executed_candidates=executed_candidates,
-			)
-			return
-
-		history_df = collect_30m_metrics()
-		pred_df = predict_next_window(history_df)
-
-		predicted_decision = evaluate_predicted(
-			pred_df=pred_df,
-			current_score=float(current_decision.current_cluster_imbalance or 0.0),
-		)
-		logger.info("Predicted window decision: %s", predicted_decision.model_dump())
-		if predicted_decision.predicted_cluster_imbalance and predicted_decision.predicted_cluster_imbalance > config.CLUSTER_IMBALANCE_THRESHOLD:
-			final_decision, planned_candidates, executed_candidates = _execute_rebalance_cycle(predicted_decision)
-			_safe_record_cycle_history(
-				cycle_started_at=cycle_started_at,
-				cycle_finished_at=datetime.now(timezone.utc),
-				trigger_source="predicted_window",
-				decision=final_decision or predicted_decision,
-				planned_candidates=planned_candidates,
-				executed_candidates=executed_candidates,
-			)
-			return
-
-		_safe_record_cycle_history(
-			cycle_started_at=cycle_started_at,
-			cycle_finished_at=datetime.now(timezone.utc),
-			trigger_source="monitor_only",
-			decision=predicted_decision,
-			planned_candidates=[],
-			executed_candidates=[],
-		)
-	except Exception as exc:
-		decision = build_error_decision(str(exc))
-		logger.exception("Monitor cycle failed: %s", exc)
-		logger.info("Monitor result: %s", decision.model_dump())
-		_safe_record_cycle_history(
-			cycle_started_at=cycle_started_at,
-			cycle_finished_at=datetime.now(timezone.utc),
-			trigger_source="error",
-			decision=decision,
-			planned_candidates=[],
-			executed_candidates=[],
-			error_message=str(exc),
-		)
-
-
 async def monitor_cluster():
-	await asyncio.to_thread(_monitor_cluster_sync)
+	from app.grpc import engine_pb2
+	from app.clients.rpc_clients import engine_client
+
+	try:
+		async with engine_client() as stub:
+			response = await stub.ComputeDecision(
+				engine_pb2.ComputeDecisionRequest(trigger_source="api_scheduler"),
+				timeout=300,
+			)
+		logger.info("Engine decision cycle triggered by API scheduler: status=%s", response.status)
+	except Exception as exc:  # pylint: disable=broad-except
+		logger.exception("API scheduler failed to trigger engine decision cycle via gRPC: %s", exc)
 
 
 def _ensure_monitor_job():
@@ -403,14 +157,3 @@ def get_monitor_job_status() -> dict:
 		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
 	}
 
-
-def start_scheduler():
-	_ensure_monitor_job()
-	if not scheduler.running:
-		scheduler.start()
-
-	return scheduler
-
-
-def stop_scheduler(scheduler):
-	scheduler.shutdown()
