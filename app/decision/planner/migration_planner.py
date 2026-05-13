@@ -6,8 +6,10 @@ from typing import Any
 
 from app import config
 from app.decision.planner.simulate_migration import compute_inventory_imbalance, simulate_migration
-from app.decision.constraints.affinity_policy import filter_candidates
+from app.decision.constraints.affinity_policy import filter_candidates as filter_affinity_candidates
+from app.decision.constraints.exclude_policy import filter_candidates as filter_excluded_candidates
 from app.models.schemas import (
+	ExcludeRule,
 	HostMetricSnapshot,
 	MigrationCandidate,
 	MigrationPlan,
@@ -173,11 +175,13 @@ class MigrationPlanner:
 		vm_inventory: list[VMInventory],
 		vm_host_rules: list[VMHostAffinityRule] | None = None,
 		vm_vm_rules: list[VMAffinityRule] | None = None,
+		exclude_rules: list[ExcludeRule] | None = None,
 		current_cluster_imbalance: float | None = None,
 		inventory_payload: list[dict[str, Any]] | None = None,
 	) -> MigrationPlan:
 		vm_host_rules = vm_host_rules or []
 		vm_vm_rules = vm_vm_rules or []
+		exclude_rules = exclude_rules or []
 		working_inventory = deepcopy(inventory_payload) if inventory_payload is not None else _build_inventory_payload(host_metrics, vm_inventory)
 		if not working_inventory:
 			logger.debug("build_plan aborted: empty working inventory")
@@ -223,7 +227,8 @@ class MigrationPlanner:
 				logger.debug("build_plan stop at step=%d: no raw candidates", current_step)
 				break
 
-			allowed_candidates, _ = filter_candidates(raw_candidates, working_vm_inventory, vm_host_rules, vm_vm_rules)
+			allowed_candidates, _ = filter_affinity_candidates(raw_candidates, working_vm_inventory, vm_host_rules, vm_vm_rules)
+			allowed_candidates, _ = filter_excluded_candidates(allowed_candidates, exclude_rules)
 			allowed_candidates = [candidate for candidate in allowed_candidates if candidate.vm_id not in used_vm_ids]
 			logger.debug(
 				"build_plan step=%d: raw_candidates=%d allowed_candidates=%d used_vm_ids=%s current_imbalance=%.6f",
@@ -234,29 +239,11 @@ class MigrationPlanner:
 				current_imbalance,
 			)
 
-			decision_policy = str(getattr(config, "DECISION_POLICY", "greedy")).strip().lower()
-			if decision_policy == "rl":
-				best_candidate, best_inventory, best_imbalance = train_and_select_candidate(
-					candidates=allowed_candidates,
-					working_inventory=working_inventory,
-					current_imbalance=current_imbalance,
-				)
-				if best_candidate is None or best_inventory is None:
-					logger.debug(
-						"rl policy returned no improving candidate at step=%d, falling back to greedy",
-						current_step,
-					)
-					best_candidate, best_inventory, best_imbalance = _select_greedy_candidate(
-						allowed_candidates=allowed_candidates,
-						working_inventory=working_inventory,
-						current_imbalance=current_imbalance,
-					)
-			else:
-				best_candidate, best_inventory, best_imbalance = _select_greedy_candidate(
-					allowed_candidates=allowed_candidates,
-					working_inventory=working_inventory,
-					current_imbalance=current_imbalance,
-				)
+			best_candidate, best_inventory, best_imbalance = _select_greedy_candidate(
+				allowed_candidates=allowed_candidates,
+				working_inventory=working_inventory,
+				current_imbalance=current_imbalance,
+			)
 
 			if best_candidate is None or best_inventory is None:
 				logger.debug("build_plan stop at step=%d: no candidate improved imbalance", current_step)
@@ -280,9 +267,8 @@ class MigrationPlanner:
 			)
 
 		if planned_candidates:
-			strategy = str(getattr(config, "DECISION_POLICY", "greedy")).strip().lower()
 			details = (
-				f"Migration candidates selected by strategy={strategy} "
+				"Migration candidates selected by greedy imbalance reduction "
 				f"({baseline_imbalance:.4f} -> {current_imbalance:.4f})"
 			)
 		else:

@@ -1,23 +1,33 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
 
 from app import config
-from app.collector import (
-	collect_host_metric_averages,
-	collect_host_metric_history,
-	collect_vm_metric_averages,
-)
 from app.models.schemas import HostMetricSnapshot, VMMetricSnapshot
+
+
+def _load_prometheus_collector():
+	module_path = Path(__file__).resolve().parents[2] / "collector" / "prometheus-collector.py"
+	spec = spec_from_file_location("collector.prometheus_collector", module_path)
+	if spec is None or spec.loader is None:
+		raise ImportError(f"Cannot load Prometheus collector from {module_path}")
+	module = module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module
+
+
+_prometheus_collector = _load_prometheus_collector()
 
 
 @dataclass(slots=True)
 class PrometheusDatasource:
 	def collect_host_metrics(self, window_minutes: int | None = None, step_seconds: int | None = None) -> pd.DataFrame:
-		return collect_host_metric_averages(
+		return _prometheus_collector.collect_host_metric_averages(
 			window_minutes=window_minutes or config.CHECK_EVENT_LOOKBACK_MINUTES,
 			step_seconds=step_seconds or config.PREDICTION_STEP_SECONDS,
 		)
@@ -27,13 +37,13 @@ class PrometheusDatasource:
 		window_minutes: int | None = None,
 		step_seconds: int | None = None,
 	) -> list[VMMetricSnapshot]:
-		return collect_vm_metric_averages(
+		return _prometheus_collector.collect_vm_metric_averages(
 			window_minutes=window_minutes or config.CHECK_EVENT_LOOKBACK_MINUTES,
 			step_seconds=step_seconds or config.PREDICTION_STEP_SECONDS,
 		)
 
 	def collect_host_history(self, window_minutes: int | None = None, step_seconds: int | None = None) -> pd.DataFrame:
-		return collect_host_metric_history(
+		return _prometheus_collector.collect_host_metric_history(
 			window_minutes=window_minutes or config.HISTORY_LOOKBACK_MINUTES,
 			step_seconds=step_seconds or config.PREDICTION_STEP_SECONDS,
 		)

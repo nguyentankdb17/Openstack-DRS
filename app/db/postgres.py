@@ -54,7 +54,7 @@ def initialize_database() -> None:
 					id BIGSERIAL PRIMARY KEY,
 					rule_name TEXT NOT NULL UNIQUE,
 					description TEXT NOT NULL DEFAULT '',
-					constraint_type TEXT NOT NULL CHECK (constraint_type IN ('vm_host', 'vm_vm')),
+					constraint_type TEXT NOT NULL CHECK (constraint_type IN ('vm_host', 'vm_vm', 'exclude')),
 					vm_id TEXT,
 					policy TEXT CHECK (policy IN ('must_together', 'must_separate')),
 					vm_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -70,6 +70,25 @@ def initialize_database() -> None:
 				"""
 				ALTER TABLE drs_constraints
 				ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''
+				"""
+			)
+			cursor.execute(
+				"""
+				DO $$
+				BEGIN
+					IF EXISTS (
+						SELECT 1
+						FROM information_schema.table_constraints
+						WHERE table_name = 'drs_constraints'
+							AND constraint_name = 'drs_constraints_constraint_type_check'
+					) THEN
+						ALTER TABLE drs_constraints DROP CONSTRAINT drs_constraints_constraint_type_check;
+					END IF;
+
+					ALTER TABLE drs_constraints
+					ADD CONSTRAINT drs_constraints_constraint_type_check
+					CHECK (constraint_type IN ('vm_host', 'vm_vm', 'exclude'));
+				END $$;
 				"""
 			)
 			cursor.execute(

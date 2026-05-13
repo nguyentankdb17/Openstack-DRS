@@ -38,7 +38,7 @@ async def monitor_cluster():
 	try:
 		async with engine_client() as stub:
 			response = await stub.ComputeDecision(
-				engine_pb2.ComputeDecisionRequest(trigger_source="api_scheduler"),
+				engine_pb2.ComputeDecisionRequest(trigger_source="openstack_drs"),
 				timeout=300,
 			)
 		logger.info("Engine decision cycle triggered by API scheduler: status=%s", response.status)
@@ -64,7 +64,26 @@ def _ensure_monitor_job():
 	return scheduler.get_job(MONITOR_JOB_ID)
 
 
-def pause_monitor_job() -> dict:
+async def start_monitor_scheduler() -> dict:
+	job = _ensure_monitor_job()
+	if not scheduler.running:
+		scheduler.start()
+
+	return {
+		"job_id": MONITOR_JOB_ID,
+		"action": "started",
+		"scheduler_running": scheduler.running,
+		"job_exists": job is not None,
+		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
+	}
+
+
+async def shutdown_monitor_scheduler() -> None:
+	if scheduler.running:
+		scheduler.shutdown(wait=False)
+
+
+async def pause_monitor_job() -> dict:
 	job = _ensure_monitor_job()
 	if job is None:
 		return {
@@ -81,7 +100,7 @@ def pause_monitor_job() -> dict:
 	}
 
 
-def restart_monitor_job(run_now: bool = False) -> dict:
+async def restart_monitor_job(run_now: bool = False) -> dict:
 	job = _ensure_monitor_job()
 	if job is None:
 		return {
@@ -109,7 +128,7 @@ def restart_monitor_job(run_now: bool = False) -> dict:
 	}
 
 
-def apply_monitor_job_runtime_config(run_now: bool = False) -> dict:
+async def apply_monitor_job_runtime_config(run_now: bool = False) -> dict:
 	job = _ensure_monitor_job()
 	if job is None:
 		return {
@@ -156,4 +175,3 @@ def get_monitor_job_status() -> dict:
 		"paused": bool(job and job.next_run_time is None),
 		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
 	}
-

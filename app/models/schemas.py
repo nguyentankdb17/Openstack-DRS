@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class HostMetricSnapshot(BaseModel):
@@ -56,6 +56,12 @@ class VMHostAffinityRule(BaseModel):
 	forbidden_hosts: list[str] = Field(default_factory=list)
 
 
+class ExcludeRule(BaseModel):
+	rule_id: str
+	vm_ids: list[str] = Field(default_factory=list)
+	host_ids: list[str] = Field(default_factory=list)
+
+
 class MigrationCandidate(BaseModel):
 	vm_id: str
 	source_host: str
@@ -106,12 +112,13 @@ class MonitorResponse(BaseModel):
 class ConstraintRecord(BaseModel):
 	rule_name: str
 	description: str = ""
-	constraint_type: Literal["vm_host", "vm_vm"]
+	constraint_type: Literal["vm_host", "vm_vm", "exclude"]
 	vm_id: str | None = None
 	policy: Literal["must_together", "must_separate"] | None = None
 	vm_ids: list[str] = Field(default_factory=list)
 	allowed_hosts: list[str] = Field(default_factory=list)
 	forbidden_hosts: list[str] = Field(default_factory=list)
+	host_ids: list[str] = Field(default_factory=list)
 	is_enabled: bool = True
 	created_at: datetime
 	updated_at: datetime
@@ -132,6 +139,22 @@ class VMVMConstraintUpsert(BaseModel):
 	vm_ids: list[str] = Field(default_factory=list)
 	policy: Literal["must_together", "must_separate"]
 	is_enabled: bool = True
+
+
+class ExcludeConstraintUpsert(BaseModel):
+	rule_name: str
+	description: str = ""
+	vm_ids: list[str] = Field(default_factory=list)
+	host_ids: list[str] = Field(default_factory=list)
+	is_enabled: bool = True
+
+	@model_validator(mode="after")
+	def validate_single_scope(self) -> "ExcludeConstraintUpsert":
+		has_vm_scope = any(str(item).strip() for item in self.vm_ids)
+		has_host_scope = any(str(item).strip() for item in self.host_ids)
+		if has_vm_scope == has_host_scope:
+			raise ValueError("Exclude constraint must contain either vm_ids or host_ids, not both")
+		return self
 
 
 class CycleHistoryRecord(BaseModel):

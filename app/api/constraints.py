@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.schemas import ConstraintRecord, VMHostConstraintUpsert, VMVMConstraintUpsert
+from app.models.schemas import ConstraintRecord, ExcludeConstraintUpsert, VMHostConstraintUpsert, VMVMConstraintUpsert
 from app.domain.constraint_service import (
 	delete_constraint,
 	get_constraint,
 	list_constraints,
 	set_constraint_enabled,
+	upsert_exclude_constraint,
 	upsert_vm_host_constraint,
 	upsert_vm_vm_constraint,
 )
@@ -39,6 +40,11 @@ def create_or_update_vm_vm_constraint(payload: VMVMConstraintUpsert) -> Constrai
 	return upsert_vm_vm_constraint(payload)
 
 
+@router.post("/constraints/exclude", response_model=ConstraintRecord)
+def create_or_update_exclude_constraint(payload: ExcludeConstraintUpsert) -> ConstraintRecord:
+	return upsert_exclude_constraint(payload)
+
+
 @router.put("/constraints/vm-host/{rule_name}", response_model=ConstraintRecord)
 def update_vm_host_constraint(rule_name: str, payload: VMHostConstraintUpsert) -> ConstraintRecord:
 	merged_payload = payload.model_copy(update={"rule_name": rule_name})
@@ -49,6 +55,12 @@ def update_vm_host_constraint(rule_name: str, payload: VMHostConstraintUpsert) -
 def update_vm_vm_constraint(rule_name: str, payload: VMVMConstraintUpsert) -> ConstraintRecord:
 	merged_payload = payload.model_copy(update={"rule_name": rule_name})
 	return upsert_vm_vm_constraint(merged_payload)
+
+
+@router.put("/constraints/exclude/{rule_name}", response_model=ConstraintRecord)
+def update_exclude_constraint(rule_name: str, payload: ExcludeConstraintUpsert) -> ConstraintRecord:
+	merged_payload = payload.model_copy(update={"rule_name": rule_name})
+	return upsert_exclude_constraint(merged_payload)
 
 
 @router.delete("/constraints/{rule_name}")

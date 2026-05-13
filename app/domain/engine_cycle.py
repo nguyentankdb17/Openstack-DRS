@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import statistics
 from datetime import datetime, timezone
 
 import grpc
@@ -11,7 +10,7 @@ from app import config
 from app.decision.datasource.openstack_inventory import OpenStackInventoryDatasource
 from app.decision.datasource.prometheus_datasource import PrometheusDatasource
 from app.decision.planner.migration_planner import MigrationPlanner
-from app.domain.constraint_service import load_active_affinity_rules
+from app.domain.constraint_service import load_active_constraint_rules
 from app.domain.decision_service import (
 	build_error_decision,
 	build_event_skip_decision,
@@ -22,11 +21,8 @@ from app.domain.decision_service import (
 )
 from app.domain.metrics_service import collect_30m_metrics, collect_5m_metrics
 from app.domain.pending_plan_store import set_pending
-from app.domain.prediction_service import predict_next_window
 from app.executor.migration_executor import MigrationExecutor
 from app.grpc import (
-	analytics_pb2,
-	analytics_pb2_grpc,
 	collector_pb2,
 	collector_pb2_grpc,
 	scoring_pb2,
@@ -53,10 +49,6 @@ def _make_channel(env_host: str, default_host: str, default_port: int) -> grpc.a
 
 def _collector_channel() -> grpc.aio.Channel:
 	return _make_channel("DRS_COLLECTOR_HOST", "drs-collector", 50051)
-
-
-def _analytics_channel() -> grpc.aio.Channel:
-	return _make_channel("DRS_ANALYTICS_HOST", "drs-analytics", 50052)
 
 
 def _scoring_channel() -> grpc.aio.Channel:
@@ -111,11 +103,18 @@ async def run_decision_cycle(trigger_source: str = "scheduler") -> dict:
 		current_decision.current_cluster_imbalance is None
 		or current_decision.current_cluster_imbalance <= config.CLUSTER_IMBALANCE_THRESHOLD
 	):
-		predicted_score = await _predict_score()
-		if predicted_score <= config.CLUSTER_IMBALANCE_THRESHOLD:
-			logger.info("[engine] Both current and predicted imbalance are below threshold - no action")
-			await _record_balanced_prediction(cycle_started_at, current_decision)
-			return {"status": "balanced", "score": current_score}
+		logger.info(
+			"[engine] Current imbalance is below threshold - recording prediction without planning"
+		)
+		predicted_decision = await _record_balanced_prediction(cycle_started_at, current_decision)
+		return {
+			"status": "monitor_only",
+			"score": current_score,
+			"predicted_status": predicted_decision.status if predicted_decision else None,
+			"predicted_cluster_imbalance": (
+				predicted_decision.predicted_cluster_imbalance if predicted_decision else None
+			),
+		}
 
 	return await _plan_or_execute(cycle_started_at, trigger_source, current_decision)
 
@@ -158,28 +157,10 @@ async def _evaluate_current_window(cycle_started_at: datetime, trigger_source: s
 		return None
 
 
-async def _predict_score() -> float:
+async def _record_balanced_prediction(cycle_started_at: datetime, current_decision):
 	try:
-		async with _analytics_channel() as channel:
-			stub = analytics_pb2_grpc.AnalyticsServiceStub(channel)
-			response = await stub.Predict(
-				analytics_pb2.PredictRequest(
-					host_id="",
-					metric="cpu",
-					horizon_minutes=config.PREDICTION_HORIZON_MINUTES,
-				),
-				timeout=120,
-			)
-		predicted_score = statistics.mean(response.values) if response.values else 0.0
-		logger.info("[engine] Predicted score=%.4f", predicted_score)
-		return predicted_score
-	except Exception as exc:  # pylint: disable=broad-except
-		logger.warning("[engine] Predict RPC failed: %s", exc)
-		return 0.0
+		from app.domain.prediction_service import predict_next_window
 
-
-async def _record_balanced_prediction(cycle_started_at: datetime, current_decision) -> None:
-	try:
 		history_df = await asyncio.to_thread(collect_30m_metrics)
 		pred_df = await asyncio.to_thread(predict_next_window, history_df)
 		predicted_decision = evaluate_predicted(
@@ -193,8 +174,10 @@ async def _record_balanced_prediction(cycle_started_at: datetime, current_decisi
 			planned=[],
 			executed=[],
 		)
+		return predicted_decision
 	except Exception:
 		logger.exception("[engine] Failed to record balanced prediction")
+		return None
 
 
 async def _plan_or_execute(cycle_started_at: datetime, trigger_source: str, current_decision) -> dict:
@@ -228,9 +211,9 @@ async def _plan_or_execute(cycle_started_at: datetime, trigger_source: str, curr
 		vm_inventory = inventory_ds.extract_vm_inventory(combined_inventory)
 
 		try:
-			vm_host_rules, vm_vm_rules = load_active_affinity_rules()
+			vm_host_rules, vm_vm_rules, exclude_rules = load_active_constraint_rules()
 		except Exception:
-			vm_host_rules, vm_vm_rules = [], []
+			vm_host_rules, vm_vm_rules, exclude_rules = [], [], []
 
 		migration_plan = await asyncio.to_thread(
 			planner.build_plan,
@@ -238,6 +221,7 @@ async def _plan_or_execute(cycle_started_at: datetime, trigger_source: str, curr
 			vm_inventory=vm_inventory,
 			vm_host_rules=vm_host_rules,
 			vm_vm_rules=vm_vm_rules,
+			exclude_rules=exclude_rules,
 			current_cluster_imbalance=current_decision.current_cluster_imbalance,
 			inventory_payload=combined_inventory,
 		)

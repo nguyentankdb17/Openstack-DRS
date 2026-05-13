@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app import config
-from app.models.schemas import HostMetricSnapshot, MigrationCandidate, VMHostAffinityRule, VMInventory, VMAffinityRule
-from app.decision.constraints.affinity_policy import filter_candidates
+from app.models.schemas import ExcludeRule, HostMetricSnapshot, MigrationCandidate, VMHostAffinityRule, VMInventory, VMAffinityRule
+from app.decision.constraints.affinity_policy import filter_candidates as filter_affinity_candidates
+from app.decision.constraints.exclude_policy import filter_candidates as filter_excluded_candidates
 
 
 def _host_metric_map(host_metrics: list[HostMetricSnapshot]) -> dict[str, HostMetricSnapshot]:
@@ -60,6 +61,7 @@ def build_candidate_pairs(
 	vm_inventory: list[VMInventory],
 	vm_host_rules: list[VMHostAffinityRule],
 	vm_vm_rules: list[VMAffinityRule],
+	exclude_rules: list[ExcludeRule] | None = None,
 ) -> list[MigrationCandidate]:
 	metric_map = _host_metric_map(host_metrics)
 	source_host_names = {vm.current_host for vm in vm_inventory}
@@ -127,5 +129,6 @@ def build_candidate_pairs(
 					)
 				)
 
-	allowed_candidates, _ = filter_candidates(raw_candidates, vm_inventory, vm_host_rules, vm_vm_rules)
+	allowed_candidates, _ = filter_affinity_candidates(raw_candidates, vm_inventory, vm_host_rules, vm_vm_rules)
+	allowed_candidates, _ = filter_excluded_candidates(allowed_candidates, exclude_rules or [])
 	return allowed_candidates
