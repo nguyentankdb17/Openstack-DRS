@@ -199,12 +199,13 @@ export async function fetchConstraints(): Promise<MigrationConstraint[]> {
     Array<{
       rule_name: string;
       description: string;
-      constraint_type: "vm_host" | "vm_vm";
+      constraint_type: "vm_host" | "vm_vm" | "exclude";
       vm_id: string | null;
       policy: "must_together" | "must_separate" | null;
       vm_ids: string[];
       allowed_hosts: string[];
       forbidden_hosts: string[];
+      host_ids?: string[];
       is_enabled: boolean;
       created_at: string;
       updated_at: string;
@@ -223,6 +224,7 @@ export async function fetchConstraints(): Promise<MigrationConstraint[]> {
     policy: item.policy ?? undefined,
     allowed_hosts: item.allowed_hosts,
     forbidden_hosts: item.forbidden_hosts,
+    host_ids: item.host_ids ?? item.forbidden_hosts,
     created_at: new Date(item.created_at),
     updated_at: new Date(item.updated_at),
   }));
@@ -238,7 +240,7 @@ export async function upsertConstraint(constraint: MigrationConstraint): Promise
       forbidden_hosts: constraint.forbidden_hosts ?? [],
       is_enabled: constraint.enabled,
     });
-  } else {
+  } else if (constraint.rule_type === "vm_vm") {
     await request("/constraints/vm-vm", "POST", {
       rule_name: constraint.rule_name,
       description: constraint.description ?? "",
@@ -246,17 +248,26 @@ export async function upsertConstraint(constraint: MigrationConstraint): Promise
       policy: constraint.policy ?? "must_separate",
       is_enabled: constraint.enabled,
     });
+  } else {
+    await request("/constraints/exclude", "POST", {
+      rule_name: constraint.rule_name,
+      description: constraint.description ?? "",
+      vm_ids: constraint.vm_ids ?? [],
+      host_ids: constraint.host_ids ?? [],
+      is_enabled: constraint.enabled,
+    });
   }
 
   const latest = await request<{
     rule_name: string;
     description: string;
-    constraint_type: "vm_host" | "vm_vm";
+    constraint_type: "vm_host" | "vm_vm" | "exclude";
     vm_id: string | null;
     policy: "must_together" | "must_separate" | null;
     vm_ids: string[];
     allowed_hosts: string[];
     forbidden_hosts: string[];
+    host_ids?: string[];
     is_enabled: boolean;
     created_at: string;
     updated_at: string;
@@ -274,6 +285,7 @@ export async function upsertConstraint(constraint: MigrationConstraint): Promise
     policy: latest.policy ?? undefined,
     allowed_hosts: latest.allowed_hosts,
     forbidden_hosts: latest.forbidden_hosts,
+    host_ids: latest.host_ids ?? latest.forbidden_hosts,
     created_at: new Date(latest.created_at),
     updated_at: new Date(latest.updated_at),
   };

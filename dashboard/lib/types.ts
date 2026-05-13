@@ -46,7 +46,7 @@ export interface MigrationConstraint {
   id: string;
   rule_name: string;
   name: string;
-  rule_type: "vm_host" | "vm_vm";
+  rule_type: "vm_host" | "vm_vm" | "exclude";
   description?: string;
   enabled: boolean;
   vm_id?: string;
@@ -54,6 +54,7 @@ export interface MigrationConstraint {
   policy?: "must_together" | "must_separate";
   allowed_hosts?: string[];
   forbidden_hosts?: string[];
+  host_ids?: string[];
   created_at: DateLike;
   updated_at: DateLike;
 }

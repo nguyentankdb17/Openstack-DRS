@@ -15,6 +15,38 @@ import { MigrationConstraint } from "@/lib/types";
 import { formatDate } from "@/lib/format-utils";
 import { Trash2, Edit2, Plus, ToggleLeft } from "lucide-react";
 
+function getConstraintTypeLabel(ruleType: MigrationConstraint["rule_type"]): string {
+  if (ruleType === "vm_host") {
+    return "VM to Host";
+  }
+  if (ruleType === "vm_vm") {
+    return "VM to VM";
+  }
+  return "Exclude";
+}
+
+function getConstraintDetails(constraint: MigrationConstraint): string {
+  if (constraint.rule_type === "vm_host") {
+    const parts = [
+      constraint.vm_id ? `VM ${constraint.vm_id}` : "",
+      constraint.allowed_hosts?.length ? `allowed: ${constraint.allowed_hosts.join(", ")}` : "",
+      constraint.forbidden_hosts?.length ? `forbidden: ${constraint.forbidden_hosts.join(", ")}` : "",
+    ].filter(Boolean);
+    return parts.join(" | ") || "-";
+  }
+
+  if (constraint.rule_type === "vm_vm") {
+    const vmIds = constraint.vm_ids?.join(", ") || "-";
+    return `${constraint.policy ?? "must_separate"}: ${vmIds}`;
+  }
+
+  const parts = [
+    constraint.vm_ids?.length ? `VMs: ${constraint.vm_ids.join(", ")}` : "",
+    constraint.host_ids?.length ? `Hosts: ${constraint.host_ids.join(", ")}` : "",
+  ].filter(Boolean);
+  return parts.join(" | ") || "-";
+}
+
 export default function ConstraintsPage() {
   const [constraints, setConstraints] = useState<MigrationConstraint[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -210,6 +242,9 @@ export default function ConstraintsPage() {
                 <th className="text-left py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">
                   Description
                 </th>
+                <th className="text-left py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">
+                  Scope
+                </th>
                 <th className="text-center py-3 px-4 text-gray-700 dark:text-gray-300 font-medium">
                   Status
                 </th>
@@ -232,11 +267,16 @@ export default function ConstraintsPage() {
                   </td>
                   <td className="py-3 px-4">
                     <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
-                      {constraint.rule_type}
+                      {getConstraintTypeLabel(constraint.rule_type)}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
                     {constraint.description || "-"}
+                  </td>
+                  <td className="py-3 px-4 text-xs text-gray-600 dark:text-gray-400 max-w-xs">
+                    <span className="block truncate" title={getConstraintDetails(constraint)}>
+                      {getConstraintDetails(constraint)}
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span

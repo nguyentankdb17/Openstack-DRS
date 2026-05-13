@@ -19,11 +19,17 @@ export function ConstraintForm({
   isLoading = false,
 }: ConstraintFormProps) {
   const initialRuleType = constraint?.rule_type || "vm_host";
+  const initialExcludeScope =
+    constraint?.rule_type === "exclude" &&
+    (constraint.host_ids?.length || (!constraint.vm_ids?.length && constraint.forbidden_hosts?.length))
+      ? "host"
+      : "vm";
   const [formData, setFormData] = useState({
     id: constraint?.id || constraint?.rule_name || "",
     rule_name: constraint?.rule_name || "",
     name: constraint?.name || constraint?.rule_name || "",
     rule_type: initialRuleType,
+    exclude_scope: initialExcludeScope,
     description: constraint?.description || "",
     enabled: constraint?.enabled ?? true,
     vm_id: constraint?.vm_id || "",
@@ -31,6 +37,7 @@ export function ConstraintForm({
     policy: constraint?.policy || "must_separate",
     allowed_hosts: (constraint?.allowed_hosts || []).join(", "),
     forbidden_hosts: (constraint?.forbidden_hosts || []).join(", "),
+    host_ids: (constraint?.host_ids || constraint?.forbidden_hosts || []).join(", "),
   });
 
   const handleChange = (
@@ -55,7 +62,7 @@ export function ConstraintForm({
       enabled: formData.enabled,
       vm_id: formData.rule_type === "vm_host" ? formData.vm_id.trim() : undefined,
       vm_ids:
-        formData.rule_type === "vm_vm"
+        formData.rule_type === "vm_vm" || (formData.rule_type === "exclude" && formData.exclude_scope === "vm")
           ? formData.vm_ids
               .split(",")
               .map((item) => item.trim())
@@ -72,6 +79,13 @@ export function ConstraintForm({
       forbidden_hosts:
         formData.rule_type === "vm_host"
           ? formData.forbidden_hosts
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : undefined,
+      host_ids:
+        formData.rule_type === "exclude" && formData.exclude_scope === "host"
+          ? formData.host_ids
               .split(",")
               .map((item) => item.trim())
               .filter(Boolean)
@@ -121,6 +135,7 @@ export function ConstraintForm({
         >
           <option value="vm_host">VM to Host Constraint</option>
           <option value="vm_vm">VM to VM Affinity Constraint</option>
+          <option value="exclude">Exclude VM/Host Constraint</option>
         </select>
       </div>
 
@@ -166,7 +181,7 @@ export function ConstraintForm({
             />
           </div>
         </>
-      ) : (
+      ) : formData.rule_type === "vm_vm" ? (
         <>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -196,6 +211,53 @@ export function ConstraintForm({
               <option value="must_together">Must Together</option>
             </select>
           </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Exclude Scope
+            </label>
+            <select
+              name="exclude_scope"
+              value={formData.exclude_scope}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            >
+              <option value="vm">VM only</option>
+              <option value="host">Host only</option>
+            </select>
+          </div>
+
+          {formData.exclude_scope === "vm" ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Excluded VM IDs (comma-separated)
+              </label>
+              <Input
+                type="text"
+                name="vm_ids"
+                value={formData.vm_ids}
+                onChange={handleChange}
+                placeholder="vm-uuid-1, vm-uuid-2"
+                required
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Excluded Hosts (comma-separated)
+              </label>
+              <Input
+                type="text"
+                name="host_ids"
+                value={formData.host_ids}
+                onChange={handleChange}
+                placeholder="compute-01, compute-02"
+                required
+              />
+            </div>
+          )}
         </>
       )}
 

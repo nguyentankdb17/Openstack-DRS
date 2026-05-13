@@ -173,19 +173,14 @@ export const mockCycles: Cycle[] = [
 ];
 
 export const mockJobConfiguration: JobConfiguration = {
-  id: "job-001",
-  scheduler_interval: 300, // 5 minutes
+  scheduler_interval_minutes: 5,
   cluster_imbalance_threshold: 0.75,
   max_migration_per_cycle: 5,
-  openstack_auth_url: "https://openstack.example.com:5000/v3",
-  openstack_username: "admin",
-  openstack_password: "encrypted_password_here",
-  openstack_project_name: "admin",
-  nova_db_host: "nova-db.example.com",
-  nova_db_user: "nova",
-  nova_db_password: "encrypted_db_password",
-  created_at: new Date("2025-01-01T00:00:00"),
-  updated_at: new Date("2025-04-08T12:00:00"),
+  prometheus_base_url: "http://prometheus:9090",
+  prometheus_username: "admin",
+  prometheus_password: "admin",
+  check_event_lookback_minutes: 5,
+  prediction_horizon_minutes: 5,
 };
 
 export const mockJobStatus: JobStatus = {
@@ -199,40 +194,39 @@ export const mockJobStatus: JobStatus = {
 
 export const mockConstraints: MigrationConstraint[] = [
   {
-    id: "constraint-001",
-    name: "No migration during business hours",
-    rule_type: "time_based",
-    description: "Prevent migrations between 8 AM and 6 PM on weekdays",
+    id: "avoid-db-targets",
+    rule_name: "avoid-db-targets",
+    name: "Avoid database hosts",
+    rule_type: "vm_host",
+    description: "Keep app VMs away from database hosts",
     enabled: true,
+    vm_id: "vm-app-001",
+    forbidden_hosts: ["compute-db-01", "compute-db-02"],
     created_at: new Date("2025-01-15T10:00:00"),
     updated_at: new Date("2025-04-08T14:00:00"),
   },
   {
-    id: "constraint-002",
-    name: "Max 3 concurrent migrations",
-    rule_type: "resource_limit",
-    description: "Limit concurrent live migrations to avoid network saturation",
+    id: "separate-critical-vms",
+    rule_name: "separate-critical-vms",
+    name: "Separate critical VMs",
+    rule_type: "vm_vm",
+    description: "Keep critical workloads on different hosts",
     enabled: true,
+    vm_ids: ["vm-api-001", "vm-api-002"],
+    policy: "must_separate",
     created_at: new Date("2025-02-01T09:00:00"),
     updated_at: new Date("2025-03-20T11:00:00"),
   },
   {
-    id: "constraint-003",
+    id: "exclude-maintenance",
+    rule_name: "exclude-maintenance",
     name: "Exclude production database hosts",
-    rule_type: "host_exclusion",
-    description: "Never migrate from critical database servers",
+    rule_type: "exclude",
+    description: "Do not select VMs or hosts under maintenance",
     enabled: true,
+    host_ids: ["compute-01"],
     created_at: new Date("2025-02-10T14:30:00"),
     updated_at: new Date("2025-04-01T16:00:00"),
-  },
-  {
-    id: "constraint-004",
-    name: "Max memory per VM",
-    rule_type: "vm_limit",
-    description: "Do not migrate VMs with more than 32GB memory",
-    enabled: false,
-    created_at: new Date("2025-03-05T08:00:00"),
-    updated_at: new Date("2025-04-09T10:00:00"),
   },
 ];
 
