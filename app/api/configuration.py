@@ -31,28 +31,28 @@ def get_admin_runtime_config() -> RuntimeConfigResponse:
 
 
 @router.patch("/admin/config", response_model=RuntimeConfigResponse)
-def patch_admin_runtime_config(payload: RuntimeConfigUpdateRequest) -> RuntimeConfigResponse:
+async def patch_admin_runtime_config(payload: RuntimeConfigUpdateRequest) -> RuntimeConfigResponse:
 	try:
 		updated = update_runtime_config(payload.updates)
 	except ValueError as exc:
 		raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 	if any(key in SCHEDULER_RUNTIME_KEYS for key in updated.keys()):
-		apply_monitor_job_runtime_config(run_now=False)
+		await apply_monitor_job_runtime_config(run_now=False)
 
 	return RuntimeConfigResponse(data=updated)
 
 
 @router.get("/admin/jobs/monitor", response_model=SchedulerJobControlResponse)
-def get_admin_monitor_job_status() -> SchedulerJobControlResponse:
+async def get_admin_monitor_job_status() -> SchedulerJobControlResponse:
 	return SchedulerJobControlResponse(data=get_monitor_job_status())
 
 
 @router.post("/admin/jobs/monitor/pause", response_model=SchedulerJobControlResponse)
-def post_admin_pause_monitor_job() -> SchedulerJobControlResponse:
-	return SchedulerJobControlResponse(data=pause_monitor_job())
+async def post_admin_pause_monitor_job() -> SchedulerJobControlResponse:
+	return SchedulerJobControlResponse(data=await pause_monitor_job())
 
 
 @router.post("/admin/jobs/monitor/restart", response_model=SchedulerJobControlResponse)
-def post_admin_restart_monitor_job(run_now: bool = False) -> SchedulerJobControlResponse:
-	return SchedulerJobControlResponse(data=restart_monitor_job(run_now=run_now))
+async def post_admin_restart_monitor_job(run_now: bool = False) -> SchedulerJobControlResponse:
+	return SchedulerJobControlResponse(data=await restart_monitor_job(run_now=run_now))

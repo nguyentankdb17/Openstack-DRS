@@ -17,6 +17,7 @@ from app.api.configuration import router as configuration_router
 from app.api.plan import router as plan_router
 from app.api.webhook import router as webhook_router
 from app.db.postgres import initialize_database
+from app.scheduler.monitor_job import shutdown_monitor_scheduler, start_monitor_scheduler
 from app.middleware import setup_middleware
 from app.core import settings
 from app.utils.logger import get_logger, setup_logging
@@ -29,8 +30,12 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     setup_logging(settings.app.log_level)
     initialize_database()
+    await start_monitor_scheduler()
 
-    yield
+    try:
+        yield
+    finally:
+        await shutdown_monitor_scheduler()
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
