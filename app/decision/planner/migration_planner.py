@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import config
+from app.decision.planner.candidate_generator import (
+	HostDirection,
+	candidate_direction,
+	filter_reverse_direction_candidates,
+)
 from app.decision.planner.simulate_migration import compute_inventory_imbalance, simulate_migration
 from app.decision.constraints.affinity_policy import filter_candidates as filter_affinity_candidates
 from app.decision.constraints.exclude_policy import filter_candidates as filter_excluded_candidates
@@ -145,6 +150,17 @@ def _select_greedy_candidate(
 			continue
 
 		candidate_score = current_imbalance - simulation.cluster_imbalance
+		if candidate_score <= config.MIGRATION_MIN_IMBALANCE_REDUCTION:
+			logger.debug(
+				"candidate skipped: vm_id=%s source=%s target=%s reduction=%.6f min_required=%.6f",
+				candidate.vm_id,
+				candidate.source_host,
+				candidate.target_host,
+				candidate_score,
+				config.MIGRATION_MIN_IMBALANCE_REDUCTION,
+			)
+			continue
+
 		best_candidate = candidate.model_copy(
 			update={
 				"score_breakdown": {
@@ -210,13 +226,15 @@ class MigrationPlanner:
 
 		planned_candidates: list[MigrationCandidate] = []
 		used_vm_ids: set[str] = set()
+		selected_directions: set[HostDirection] = set()
 		working_vm_inventory = list(vm_inventory)
 		current_imbalance = baseline_imbalance
 		remaining_steps = max(1, sum(len(item.get("vm", [])) for item in working_inventory))
 		logger.debug(
-			"build_plan start: baseline_imbalance=%.6f threshold=%.6f max_steps=%d",
+			"build_plan start: baseline_imbalance=%.6f threshold=%.6f min_imbalance_reduction=%.6f max_steps=%d",
 			baseline_imbalance,
 			config.CLUSTER_IMBALANCE_THRESHOLD,
+			config.MIGRATION_MIN_IMBALANCE_REDUCTION,
 			remaining_steps,
 		)
 
@@ -230,12 +248,17 @@ class MigrationPlanner:
 			allowed_candidates, _ = filter_affinity_candidates(raw_candidates, working_vm_inventory, vm_host_rules, vm_vm_rules)
 			allowed_candidates, _ = filter_excluded_candidates(allowed_candidates, exclude_rules)
 			allowed_candidates = [candidate for candidate in allowed_candidates if candidate.vm_id not in used_vm_ids]
+			candidates_before_direction_filter = len(allowed_candidates)
+			allowed_candidates = filter_reverse_direction_candidates(allowed_candidates, selected_directions)
+			reverse_direction_rejections = candidates_before_direction_filter - len(allowed_candidates)
 			logger.debug(
-				"build_plan step=%d: raw_candidates=%d allowed_candidates=%d used_vm_ids=%s current_imbalance=%.6f",
+				"build_plan step=%d: raw_candidates=%d allowed_candidates=%d reverse_direction_rejections=%d used_vm_ids=%s selected_directions=%s current_imbalance=%.6f",
 				current_step,
 				len(raw_candidates),
 				len(allowed_candidates),
+				reverse_direction_rejections,
 				sorted(used_vm_ids),
+				sorted(selected_directions),
 				current_imbalance,
 			)
 
@@ -251,18 +274,20 @@ class MigrationPlanner:
 
 			planned_candidates.append(best_candidate)
 			used_vm_ids.add(best_candidate.vm_id)
+			selected_directions.add(candidate_direction(best_candidate))
 			working_inventory = best_inventory
 			working_vm_inventory = _refresh_vm_hosts(working_vm_inventory, best_candidate)
 			current_imbalance = best_imbalance
 			remaining_steps -= 1
 			logger.debug(
-				"build_plan apply step=%d: selected vm_id=%s source=%s target=%s new_imbalance=%.6f used_vm_ids=%s remaining_steps=%d",
+				"build_plan apply step=%d: selected vm_id=%s source=%s target=%s new_imbalance=%.6f used_vm_ids=%s selected_directions=%s remaining_steps=%d",
 				current_step,
 				best_candidate.vm_id,
 				best_candidate.source_host,
 				best_candidate.target_host,
 				current_imbalance,
 				sorted(used_vm_ids),
+				sorted(selected_directions),
 				remaining_steps,
 			)
 
@@ -272,7 +297,10 @@ class MigrationPlanner:
 				f"({baseline_imbalance:.4f} -> {current_imbalance:.4f})"
 			)
 		else:
-			details = "No migration candidate can further reduce cluster imbalance"
+			details = (
+				"No migration candidate can reduce cluster imbalance "
+				f"by more than {config.MIGRATION_MIN_IMBALANCE_REDUCTION:.4f}"
+			)
 
 		logger.debug(
 			"build_plan done: selected_candidates=%d baseline_imbalance=%.6f final_imbalance=%.6f",
