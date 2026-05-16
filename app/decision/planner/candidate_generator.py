@@ -7,6 +7,8 @@ from app.models.schemas import ExcludeRule, HostMetricSnapshot, MigrationCandida
 from app.decision.constraints.affinity_policy import filter_candidates as filter_affinity_candidates
 from app.decision.constraints.exclude_policy import filter_candidates as filter_excluded_candidates
 
+HostDirection = tuple[str, str]
+
 
 def _host_metric_map(host_metrics: list[HostMetricSnapshot]) -> dict[str, HostMetricSnapshot]:
 	return {metric.host: metric for metric in host_metrics}
@@ -54,6 +56,23 @@ def _target_within_thresholds(cpu_usage: float, ram_usage: float, swap_usage: fl
 		and ram_usage <= config.MIGRATION_TARGET_MAX_RAM_USAGE
 		and swap_usage <= config.MIGRATION_TARGET_MAX_SWAP_USAGE
 	)
+
+
+def candidate_direction(candidate: MigrationCandidate) -> HostDirection:
+	return (candidate.source_host, candidate.target_host)
+
+
+def has_reverse_direction(candidate: MigrationCandidate, selected_directions: set[HostDirection]) -> bool:
+	return (candidate.target_host, candidate.source_host) in selected_directions
+
+
+def filter_reverse_direction_candidates(
+	candidates: list[MigrationCandidate],
+	selected_directions: set[HostDirection],
+) -> list[MigrationCandidate]:
+	if not selected_directions:
+		return candidates
+	return [candidate for candidate in candidates if not has_reverse_direction(candidate, selected_directions)]
 
 
 def build_candidate_pairs(
