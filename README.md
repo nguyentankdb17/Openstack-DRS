@@ -1,6 +1,6 @@
 # OpenStackDRS
 
-OpenStackDRS is a Dynamic Resource Scheduler for OpenStack. The system collects host and VM metrics, evaluates current and predicted cluster imbalance, builds migration plans, and optionally executes OpenStack live migrations.
+OpenStackDRS is a Distributed Resource Scheduler for OpenStack. The system collects host and VM metrics, evaluates current and predicted cluster imbalance, builds migration plans, and optionally executes OpenStack live migrations.
 
 The current architecture is split into:
 
