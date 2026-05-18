@@ -42,7 +42,7 @@ async def monitor_cluster():
 				timeout=300,
 			)
 		logger.info("Engine decision cycle triggered by API scheduler: status=%s", response.status)
-	except Exception as exc:  # pylint: disable=broad-except
+	except Exception as exc:  
 		logger.exception("API scheduler failed to trigger engine decision cycle via gRPC: %s", exc)
 
 
@@ -69,12 +69,25 @@ async def start_monitor_scheduler() -> dict:
 	if not scheduler.running:
 		scheduler.start()
 
+	job = scheduler.get_job(MONITOR_JOB_ID)
+	if job is not None:
+		if job.next_run_time is None:
+			scheduler.resume_job(job.id)
+		job = scheduler.get_job(MONITOR_JOB_ID)
+
+	logger.info(
+		"API monitor scheduler started: running=%s interval=%s next_run_time=%s",
+		scheduler.running,
+		config.SCHEDULER_INTERVAL_MINUTES,
+		job.next_run_time.isoformat() if job and job.next_run_time else None,
+	)
 	return {
 		"job_id": MONITOR_JOB_ID,
 		"action": "started",
 		"scheduler_running": scheduler.running,
 		"job_exists": job is not None,
 		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
+		"interval_minutes": config.SCHEDULER_INTERVAL_MINUTES,
 	}
 
 

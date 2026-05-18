@@ -39,6 +39,11 @@ class AnalyticsServiceStub(object):
                 request_serializer=analytics__pb2.PredictRequest.SerializeToString,
                 response_deserializer=analytics__pb2.PredictResponse.FromString,
                 _registered_method=True)
+        self.PredictCluster = channel.unary_unary(
+                '/drs.analytics.AnalyticsService/PredictCluster',
+                request_serializer=analytics__pb2.PredictClusterRequest.SerializeToString,
+                response_deserializer=analytics__pb2.PredictClusterResponse.FromString,
+                _registered_method=True)
         self.BuildFeatures = channel.unary_unary(
                 '/drs.analytics.AnalyticsService/BuildFeatures',
                 request_serializer=analytics__pb2.BuildFeaturesRequest.SerializeToString,
@@ -50,6 +55,12 @@ class AnalyticsServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Predict(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PredictCluster(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -68,6 +79,11 @@ def add_AnalyticsServiceServicer_to_server(servicer, server):
                     servicer.Predict,
                     request_deserializer=analytics__pb2.PredictRequest.FromString,
                     response_serializer=analytics__pb2.PredictResponse.SerializeToString,
+            ),
+            'PredictCluster': grpc.unary_unary_rpc_method_handler(
+                    servicer.PredictCluster,
+                    request_deserializer=analytics__pb2.PredictClusterRequest.FromString,
+                    response_serializer=analytics__pb2.PredictClusterResponse.SerializeToString,
             ),
             'BuildFeatures': grpc.unary_unary_rpc_method_handler(
                     servicer.BuildFeatures,
@@ -102,6 +118,33 @@ class AnalyticsService(object):
             '/drs.analytics.AnalyticsService/Predict',
             analytics__pb2.PredictRequest.SerializeToString,
             analytics__pb2.PredictResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PredictCluster(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/drs.analytics.AnalyticsService/PredictCluster',
+            analytics__pb2.PredictClusterRequest.SerializeToString,
+            analytics__pb2.PredictClusterResponse.FromString,
             options,
             channel_credentials,
             insecure,
