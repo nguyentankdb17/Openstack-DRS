@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x61nalytics.proto\x12\rdrs.analytics\"J\n\x0ePredictRequest\x12\x0f\n\x07host_id\x18\x01 \x01(\t\x12\x0e\n\x06metric\x18\x02 \x01(\t\x12\x17\n\x0fhorizon_minutes\x18\x03 \x01(\x05\"0\n\x0fPredictResponse\x12\x0e\n\x06values\x18\x01 \x03(\x01\x12\r\n\x05model\x18\x02 \x01(\t\"\'\n\x14\x42uildFeaturesRequest\x12\x0f\n\x07host_id\x18\x01 \x01(\t\"\'\n\x15\x42uildFeaturesResponse\x12\x0e\n\x06status\x18\x01 \x01(\t2\xbc\x01\n\x10\x41nalyticsService\x12J\n\x07Predict\x12\x1d.drs.analytics.PredictRequest\x1a\x1e.drs.analytics.PredictResponse\"\x00\x12\\\n\rBuildFeatures\x12#.drs.analytics.BuildFeaturesRequest\x1a$.drs.analytics.BuildFeaturesResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x61nalytics.proto\x12\rdrs.analytics\"J\n\x0ePredictRequest\x12\x0f\n\x07host_id\x18\x01 \x01(\t\x12\x0e\n\x06metric\x18\x02 \x01(\t\x12\x17\n\x0fhorizon_minutes\x18\x03 \x01(\x05\"0\n\x0fPredictResponse\x12\x0e\n\x06values\x18\x01 \x03(\x01\x12\r\n\x05model\x18\x02 \x01(\t\"P\n\x15PredictClusterRequest\x12\x17\n\x0fhorizon_minutes\x18\x01 \x01(\x05\x12\x1e\n\x16history_window_minutes\x18\x02 \x01(\x05\"a\n\x16PredictedHostMetricRow\x12\x11\n\ttimestamp\x18\x01 \x01(\t\x12\x0c\n\x04host\x18\x02 \x01(\t\x12\x0b\n\x03\x63pu\x18\x03 \x01(\x01\x12\x0b\n\x03ram\x18\x04 \x01(\x01\x12\x0c\n\x04swap\x18\x05 \x01(\x01\"\\\n\x16PredictClusterResponse\x12\x33\n\x04rows\x18\x01 \x03(\x0b\x32%.drs.analytics.PredictedHostMetricRow\x12\r\n\x05model\x18\x02 \x01(\t\"\'\n\x14\x42uildFeaturesRequest\x12\x0f\n\x07host_id\x18\x01 \x01(\t\"\'\n\x15\x42uildFeaturesResponse\x12\x0e\n\x06status\x18\x01 \x01(\t2\x9d\x02\n\x10\x41nalyticsService\x12J\n\x07Predict\x12\x1d.drs.analytics.PredictRequest\x1a\x1e.drs.analytics.PredictResponse\"\x00\x12_\n\x0ePredictCluster\x12$.drs.analytics.PredictClusterRequest\x1a%.drs.analytics.PredictClusterResponse\"\x00\x12\\\n\rBuildFeatures\x12#.drs.analytics.BuildFeaturesRequest\x1a$.drs.analytics.BuildFeaturesResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,10 +35,16 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_PREDICTREQUEST']._serialized_end=108
   _globals['_PREDICTRESPONSE']._serialized_start=110
   _globals['_PREDICTRESPONSE']._serialized_end=158
-  _globals['_BUILDFEATURESREQUEST']._serialized_start=160
-  _globals['_BUILDFEATURESREQUEST']._serialized_end=199
-  _globals['_BUILDFEATURESRESPONSE']._serialized_start=201
-  _globals['_BUILDFEATURESRESPONSE']._serialized_end=240
-  _globals['_ANALYTICSSERVICE']._serialized_start=243
-  _globals['_ANALYTICSSERVICE']._serialized_end=431
+  _globals['_PREDICTCLUSTERREQUEST']._serialized_start=160
+  _globals['_PREDICTCLUSTERREQUEST']._serialized_end=240
+  _globals['_PREDICTEDHOSTMETRICROW']._serialized_start=242
+  _globals['_PREDICTEDHOSTMETRICROW']._serialized_end=339
+  _globals['_PREDICTCLUSTERRESPONSE']._serialized_start=341
+  _globals['_PREDICTCLUSTERRESPONSE']._serialized_end=433
+  _globals['_BUILDFEATURESREQUEST']._serialized_start=435
+  _globals['_BUILDFEATURESREQUEST']._serialized_end=474
+  _globals['_BUILDFEATURESRESPONSE']._serialized_start=476
+  _globals['_BUILDFEATURESRESPONSE']._serialized_end=515
+  _globals['_ANALYTICSSERVICE']._serialized_start=518
+  _globals['_ANALYTICSSERVICE']._serialized_end=803
 # @@protoc_insertion_point(module_scope)
