@@ -4,6 +4,7 @@ Provides time-series forecasting (Chronos) and feature building for hosts.
 """
 import asyncio
 import grpc
+import pandas as pd
 
 from app.utils.logger import get_logger, setup_logging
 from app.core import settings
@@ -27,11 +28,11 @@ class AnalyticsServicer(analytics_pb2_grpc.AnalyticsServiceServicer):
         """
         try:
             from app import config
-            from app.domain.metrics_service import collect_30m_metrics
+            from app.domain.metrics_service import collect_fully_metric
             from app.domain.prediction_service import predict_next_window
 
             # Collect history for this host / all hosts (filter by host_id if given)
-            history_df = await asyncio.to_thread(collect_30m_metrics)
+            history_df = await asyncio.to_thread(collect_fully_metric)
 
             if request.host_id:
                 history_df = history_df[history_df["host"] == request.host_id]
@@ -78,6 +79,69 @@ class AnalyticsServicer(analytics_pb2_grpc.AnalyticsServiceServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             return analytics_pb2.PredictResponse(values=[], model="")
 
+    async def PredictCluster(
+        self,
+        request: analytics_pb2.PredictClusterRequest,
+        context: grpc.ServicerContext,
+    ) -> analytics_pb2.PredictClusterResponse:
+        """
+        Run Chronos forecasting for all hosts using the requested history window.
+        """
+        try:
+            from app import config
+            from app.domain.metrics_service import collect_fully_metric
+            from app.domain.prediction_service import predict_next_window
+
+            history_window = int(request.history_window_minutes or config.HISTORY_LOOKBACK_MINUTES)
+            history_df = await asyncio.to_thread(
+                collect_fully_metric,
+                window_minutes=history_window,
+            )
+            if history_df.empty:
+                logger.warning(
+                    "PredictCluster: no history data for history_window_minutes=%d",
+                    history_window,
+                )
+                return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
+
+            pred_df = await asyncio.to_thread(predict_next_window, history_df)
+            if pred_df.empty:
+                logger.warning(
+                    "PredictCluster: no prediction rows for history_window_minutes=%d",
+                    history_window,
+                )
+                return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
+
+            rows = []
+            for row in pred_df.itertuples(index=False):
+                timestamp = getattr(row, "timestamp", "")
+                if isinstance(timestamp, pd.Timestamp):
+                    timestamp = timestamp.isoformat()
+                rows.append(
+                    analytics_pb2.PredictedHostMetricRow(
+                        timestamp=str(timestamp),
+                        host=str(getattr(row, "host", "")),
+                        cpu=float(getattr(row, "cpu", 0.0) or 0.0),
+                        ram=float(getattr(row, "ram", 0.0) or 0.0),
+                        swap=float(getattr(row, "swap", 0.0) or 0.0),
+                    )
+                )
+
+            logger.info(
+                "PredictCluster: history_window=%d horizon=%d rows=%d hosts=%d",
+                history_window,
+                request.horizon_minutes,
+                len(rows),
+                pred_df["host"].nunique(dropna=True) if "host" in pred_df.columns else 0,
+            )
+            return analytics_pb2.PredictClusterResponse(rows=rows, model="chronos")
+
+        except Exception as exc:
+            logger.exception("PredictCluster error: %s", exc)
+            context.set_details(str(exc))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return analytics_pb2.PredictClusterResponse(rows=[], model="")
+
     async def BuildFeatures(
         self,
         request: analytics_pb2.BuildFeaturesRequest,
@@ -85,10 +149,10 @@ class AnalyticsServicer(analytics_pb2_grpc.AnalyticsServiceServicer):
     ) -> analytics_pb2.BuildFeaturesResponse:
         """Build and cache Chronos input features for a host (or all hosts)."""
         try:
-            from app.domain.metrics_service import collect_30m_metrics
+            from app.domain.metrics_service import collect_fully_metric
             from app.domain.prediction_service import build_chronos_input
 
-            history_df = await asyncio.to_thread(collect_30m_metrics)
+            history_df = await asyncio.to_thread(collect_fully_metric)
             if request.host_id:
                 history_df = history_df[history_df["host"] == request.host_id]
 
