@@ -9,6 +9,12 @@ logger = get_logger(__name__)
 MONITOR_JOB_ID = "monitor_cluster_job"
 
 
+def _misfire_grace_time_seconds() -> int:
+    interval_seconds = max(int(config.SCHEDULER_INTERVAL_MINUTES) * 60, 60)
+    configured_seconds = max(int(config.SCHEDULER_MISFIRE_GRACE_SECONDS), 60)
+    return max(configured_seconds, interval_seconds)
+
+
 def _resolve_next_run_time() -> datetime | None:
     start_mode = config.SCHEDULER_START_MODE
     if start_mode == "immediate":
@@ -56,11 +62,13 @@ def _ensure_monitor_job():
 			id=MONITOR_JOB_ID,
 			minutes=config.SCHEDULER_INTERVAL_MINUTES,
 			next_run_time=next_run_time,
-			misfire_grace_time=60,
+			misfire_grace_time=_misfire_grace_time_seconds(),
 			max_instances=1,
 			coalesce=True,
 			replace_existing=True,
 		)
+	else:
+		scheduler.modify_job(job.id, misfire_grace_time=_misfire_grace_time_seconds())
 	return scheduler.get_job(MONITOR_JOB_ID)
 
 
@@ -88,6 +96,7 @@ async def start_monitor_scheduler() -> dict:
 		"job_exists": job is not None,
 		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
 		"interval_minutes": config.SCHEDULER_INTERVAL_MINUTES,
+		"misfire_grace_seconds": _misfire_grace_time_seconds(),
 	}
 
 
@@ -161,6 +170,7 @@ async def apply_monitor_job_runtime_config(run_now: bool = False) -> dict:
 		trigger="interval",
 		minutes=config.SCHEDULER_INTERVAL_MINUTES,
 	)
+	scheduler.modify_job(job.id, misfire_grace_time=_misfire_grace_time_seconds())
 
 	if run_now:
 		scheduler.modify_job(job.id, next_run_time=datetime.now(timezone.utc))
@@ -176,6 +186,7 @@ async def apply_monitor_job_runtime_config(run_now: bool = False) -> dict:
 		"scheduler_running": scheduler.running,
 		"next_run_time": updated_job.next_run_time.isoformat() if updated_job and updated_job.next_run_time else None,
 		"interval_minutes": config.SCHEDULER_INTERVAL_MINUTES,
+		"misfire_grace_seconds": _misfire_grace_time_seconds(),
 	}
 
 
@@ -187,4 +198,5 @@ def get_monitor_job_status() -> dict:
 		"job_exists": job is not None,
 		"paused": bool(job and job.next_run_time is None),
 		"next_run_time": job.next_run_time.isoformat() if job and job.next_run_time else None,
+		"misfire_grace_seconds": _misfire_grace_time_seconds(),
 	}
