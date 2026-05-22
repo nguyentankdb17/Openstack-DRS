@@ -6,6 +6,7 @@ will silently replace the previous one if it has not yet been approved.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from threading import Lock
 
 from app.models.schemas import MigrationPlan, PendingPlan
@@ -14,14 +15,20 @@ _lock = Lock()
 _pending: PendingPlan | None = None
 
 
-def set_pending(plan: MigrationPlan, trigger_source: str) -> PendingPlan:
+def set_pending(
+    plan: MigrationPlan,
+    trigger_source: str,
+    cycle_started_at: datetime | None = None,
+) -> PendingPlan:
     """Store a new pending plan, replacing any existing one."""
     global _pending
     pending = PendingPlan(
         plan_id=str(uuid.uuid4()),
+        cycle_started_at=cycle_started_at,
         trigger_source=trigger_source,
         candidates=plan.candidates,
         current_cluster_imbalance=plan.current_cluster_imbalance,
+        predicted_cluster_imbalance=plan.predicted_cluster_imbalance,
         details=plan.details,
     )
     with _lock:

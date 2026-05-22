@@ -41,18 +41,11 @@ MIGRATION_TARGET_MAX_SWAP_USAGE = float(os.getenv("MIGRATION_TARGET_MAX_SWAP_USA
 MIGRATION_MIN_NET_BENEFIT = float(os.getenv("MIGRATION_MIN_NET_BENEFIT", "0.1"))
 MIGRATION_MIN_IMBALANCE_REDUCTION = float(os.getenv("MIGRATION_MIN_IMBALANCE_REDUCTION", "0.01"))
 MAX_MIGRATIONS_PER_CYCLE = int(os.getenv("MAX_MIGRATIONS_PER_CYCLE", "1"))
+MIGRATION_VM_COOLDOWN_CYCLES = int(os.getenv("MIGRATION_VM_COOLDOWN_CYCLES", "2"))
 
-# Alertmanager webhook integration
-# ALERTMANAGER_WEBHOOK_TOKEN: shared secret sent in X-Webhook-Token or Authorization: Bearer header.
-#   Leave empty to disable token auth (not recommended for production).
-# ALERTMANAGER_TRIGGER_ALERTS: comma-separated alert names that trigger the decision flow.
-#   Leave empty to trigger on ANY firing alert.
 ALERTMANAGER_WEBHOOK_TOKEN = os.getenv("ALERTMANAGER_WEBHOOK_TOKEN", "")
 ALERTMANAGER_TRIGGER_ALERTS = os.getenv("ALERTMANAGER_TRIGGER_ALERTS", "")
 
-# Migration approval mode: "manual" (default) or "auto"
-# - manual: system builds a plan but waits for human approval via POST /api/v1/plan/approve
-# - auto:   system executes migrations immediately after planning
 APPROVAL_MODE = os.getenv("APPROVAL_MODE", "manual").strip().lower()
 CPU_ALLOCATION_RATIO = float(os.getenv("CPU_ALLOCATION_RATIO", "4"))
 RAM_ALLOCATION_RATIO = float(os.getenv("RAM_ALLOCATION_RATIO", "1"))
