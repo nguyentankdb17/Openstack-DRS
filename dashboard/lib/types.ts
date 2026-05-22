@@ -9,7 +9,6 @@ export interface MigrationCandidate {
   estimated_duration?: number; // seconds
   cpu_cores?: number;
   memory_gb?: number;
-  migration_cost?: number;
   policy_reasons?: string[];
   score_breakdown?: Record<string, number>;
 }
