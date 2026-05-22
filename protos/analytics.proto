@@ -4,6 +4,7 @@ package drs.analytics;
 
 service AnalyticsService {
   rpc Predict (PredictRequest) returns (PredictResponse) {}
+  rpc PredictCluster (PredictClusterRequest) returns (PredictClusterResponse) {}
   rpc BuildFeatures (BuildFeaturesRequest) returns (BuildFeaturesResponse) {}
 }
 
@@ -15,6 +16,24 @@ message PredictRequest {
 
 message PredictResponse {
   repeated double values = 1;
+  string model = 2;
+}
+
+message PredictClusterRequest {
+  int32 horizon_minutes = 1;
+  int32 history_lookback_minutes = 2;
+}
+
+message PredictedHostMetricRow {
+  string timestamp = 1;
+  string host = 2;
+  double cpu = 3;
+  double ram = 4;
+  double swap = 5;
+}
+
+message PredictClusterResponse {
+  repeated PredictedHostMetricRow rows = 1;
   string model = 2;
 }
 
