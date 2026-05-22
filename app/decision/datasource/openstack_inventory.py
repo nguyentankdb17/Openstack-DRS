@@ -82,6 +82,29 @@ def _host_aliases(host: HostInventory) -> set[str]:
 	return normalized_aliases
 
 
+def _normalize_state(value: str | None) -> str:
+	return str(value or "").strip().lower()
+
+
+def _host_inventory_enabled(host: HostInventory | None) -> bool:
+	if host is None:
+		return True
+
+	state = _normalize_state(host.state or host.metadata.get("state"))
+	status = _normalize_state(host.metadata.get("status"))
+	service_state = _normalize_state(host.metadata.get("service_state"))
+	service_status = _normalize_state(host.metadata.get("service_status"))
+	forced_down = _normalize_state(host.metadata.get("forced_down"))
+
+	if status == "disabled" or service_status == "disabled":
+		return False
+	if state == "down" or service_state == "down":
+		return False
+	if forced_down in {"true", "1", "yes"}:
+		return False
+	return True
+
+
 def _is_unknown_host(host_name: str) -> bool:
 	return not host_name or host_name.strip().lower() == "unknown"
 
@@ -112,6 +135,41 @@ class OpenStackInventoryDatasource:
 	def is_available(self) -> bool:
 		return self.connection is not None
 
+	def list_enabled_host_aliases(self) -> set[str]:
+		"""Return aliases for hosts that are eligible for prediction/planning."""
+		enabled_aliases: set[str] = set()
+		for host in self.list_hosts():
+			if _is_unknown_host(host.host) or not _host_inventory_enabled(host):
+				continue
+			enabled_aliases.update(_host_aliases(host))
+		return enabled_aliases
+
+	def _compute_services_by_host(self) -> dict[str, dict[str, str]]:
+		if self.connection is None:
+			return {}
+
+		services_by_host: dict[str, dict[str, str]] = {}
+		try:
+			services = self.connection.compute.services(binary="nova-compute")
+		except Exception as exc:
+			logger.warning("Unable to fetch nova-compute service states: %s", exc)
+			return {}
+
+		for service in services:
+			host = str(getattr(service, "host", "") or "")
+			if not host:
+				continue
+			service_metadata = {
+				"service_state": str(getattr(service, "state", "") or ""),
+				"service_status": str(getattr(service, "status", "") or ""),
+				"disabled_reason": str(getattr(service, "disabled_reason", "") or ""),
+				"forced_down": str(getattr(service, "forced_down", "") or ""),
+			}
+			for alias in {host, host.split(":")[0], host.split(".")[0]}:
+				if alias:
+					services_by_host.setdefault(alias, service_metadata)
+		return services_by_host
+
 	def list_hosts(self) -> list[HostInventory]:
 		if self.connection is None:
 			logger.debug("list_hosts skipped: OpenStack connection is unavailable")
@@ -119,6 +177,7 @@ class OpenStackInventoryDatasource:
 
 		logger.debug("Building host inventory from OpenStack hypervisors")
 		hosts: list[HostInventory] = []
+		compute_services_by_host = self._compute_services_by_host()
 		for hypervisor in self.connection.compute.hypervisors():
 			host_name = getattr(hypervisor, "name", None) or getattr(hypervisor, "hypervisor_hostname", None)
 			if not host_name:
@@ -127,15 +186,24 @@ class OpenStackInventoryDatasource:
 			host_state = str(getattr(hypervisor, "state", ""))
 			host_status = str(getattr(hypervisor, "status", ""))
 			host_ip = str(getattr(hypervisor, "host_ip", "") or "")
+			host_name_text = str(host_name)
+			service_metadata = (
+				compute_services_by_host.get(host_name_text)
+				or compute_services_by_host.get(host_name_text.split(":")[0])
+				or compute_services_by_host.get(host_name_text.split(".")[0])
+				or {}
+			)
 			hosts.append(
 				HostInventory(
-					host=str(host_name),
+					host=host_name_text,
+					state=host_state,
 					metadata={
 						"state": host_state,
 						"status": host_status,
-						"hostname": str(host_name),
-						"hypervisor_hostname": str(host_name),
+						"hostname": host_name_text,
+						"hypervisor_hostname": host_name_text,
 						"host_ip": host_ip,
+						**service_metadata,
 					},
 				)
 			)
@@ -243,6 +311,7 @@ class OpenStackInventoryDatasource:
 				continue
 			for alias in _host_aliases(host):
 				host_alias_to_canonical.setdefault(alias, host.host)
+		hosts_by_name = {host.host: host for host in hosts if not _is_unknown_host(host.host)}
 
 		metrics_by_host: dict[str, HostMetricSnapshot] = {}
 		unmapped_metric_hosts: set[str] = set()
@@ -268,7 +337,8 @@ class OpenStackInventoryDatasource:
 		for vm in vms:
 			if _is_unknown_host(vm.current_host):
 				continue
-			vm_by_host[vm.current_host].append(vm)
+			canonical_host = host_alias_to_canonical.get(vm.current_host, vm.current_host)
+			vm_by_host[canonical_host].append(vm)
 
 		if unmapped_metric_hosts:
 			logger.debug(
@@ -289,6 +359,13 @@ class OpenStackInventoryDatasource:
 				continue
 			host_vms = vm_by_host.get(host_name, [])
 			metric = metrics_by_host.get(host_name)
+			metrics_available = metric is not None
+			host_enabled = _host_inventory_enabled(hosts_by_name.get(host_name))
+			exclude_reasons = []
+			if not metrics_available:
+				exclude_reasons.append("missing_metrics")
+			if not host_enabled:
+				exclude_reasons.append("host_disabled")
 			cpu_allocated = float(metric.cpu_allocated) if metric else 0.0
 			memory_allocated = float(metric.ram_allocated) if metric else 0.0
 			swap_allocated = float(metric.swap_allocated) if metric else 0.0
@@ -337,6 +414,10 @@ class OpenStackInventoryDatasource:
 					"memory_usage": float(metric.ram) if metric else "",
 					"swap_allocated": swap_allocated,
 					"swap_usage": float(metric.swap) if metric else "",
+					"metrics_available": metrics_available,
+					"host_enabled": host_enabled,
+					"excluded_from_planning": bool(exclude_reasons),
+					"exclude_reason": ",".join(exclude_reasons),
 					"vm": vm_payloads,
 				}
 			)

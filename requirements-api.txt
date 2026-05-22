@@ -1,0 +1,13 @@
+# Minimal runtime dependencies for the REST API gateway.
+fastapi==0.135.2
+uvicorn==0.42.0
+pydantic==2.12.5
+python-dotenv==1.1.1
+grpcio==1.68.1
+protobuf==5.29.2
+psycopg2-binary==2.9.10
+pandas==2.3.3
+numpy==1.26.4
+requests==2.32.5
+openstacksdk==4.7.0
+APScheduler==3.11.2

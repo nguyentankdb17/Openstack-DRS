@@ -33,7 +33,7 @@ class MigrationExecutor:
 				message=message,
 				executed_at=datetime.now(timezone.utc),
 			)
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("Migration failed for vm %s: %s", candidate.vm_id, exc)
 			return MigrationExecutionResult(
 				vm_id=candidate.vm_id,

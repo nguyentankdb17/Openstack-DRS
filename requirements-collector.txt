@@ -1,0 +1,9 @@
+# Minimal runtime dependencies for services/collector.
+grpcio==1.68.1
+protobuf==5.29.2
+python-dotenv==1.1.1
+pydantic==2.12.5
+pandas==2.3.3
+requests==2.32.5
+openstacksdk==4.7.0
+PyMySQL==1.1.1

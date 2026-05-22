@@ -1,41 +1,32 @@
-FROM python:3.12-slim AS builder
-
-WORKDIR /build
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev libfreetype6-dev libjpeg-dev libpng-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
-
-
 FROM python:3.12-slim
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /build/wheels /wheels
-RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
-
-COPY . .
-
-RUN python -m grpc_tools.protoc \
-    -I protos \
-    --python_out app/grpc \
-    --grpc_python_out app/grpc \
-    protos/*.proto
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY requirements-engine.txt .
+RUN pip install --no-cache-dir -r requirements-engine.txt
+
+COPY services/engine ./services/engine
+COPY app/config.py ./app/
+COPY app/collector/prometheus-collector.py ./app/collector/prometheus-collector.py
+COPY app/core ./app/core
+COPY app/db ./app/db
+COPY app/decision ./app/decision
+COPY app/domain ./app/domain
+COPY app/executor ./app/executor
+COPY app/grpc ./app/grpc
+COPY app/models ./app/models
+COPY app/scoring ./app/scoring
+COPY app/utils ./app/utils
 
 EXPOSE 50054
 
-RUN echo 'import socket,sys\ns=socket.socket()\ntry:\n s.settimeout(2)\n s.connect(("127.0.0.1",50054))\n sys.exit(0)\nexcept Exception:\n sys.exit(1)\nfinally:\n s.close()' > /healthcheck.py
-
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python /healthcheck.py
+    CMD python -c "import socket; s=socket.create_connection(('127.0.0.1', 50054), 2); s.close()"
 
-CMD ["python", "services/engine/server.py"]
+CMD ["python", "-m", "services.engine.server"]

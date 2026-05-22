@@ -113,9 +113,29 @@ def build_migration_plan_decision(plan: MigrationPlan) -> ClusterDecision:
 			status=status,
 			timestamp=datetime.now(timezone.utc),
 			current_cluster_imbalance=plan.current_cluster_imbalance,
+			predicted_cluster_imbalance=plan.predicted_cluster_imbalance,
 			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
 			planned_candidates=plan.candidates,
 			details=plan.details,
+		)
+	)
+
+
+def build_migration_rejected_decision(
+	candidates: list[MigrationCandidate],
+	current_score: float | None = None,
+	predicted_score: float | None = None,
+	details: str | None = None,
+) -> ClusterDecision:
+	return set_latest_decision(
+		ClusterDecision(
+			status=constants.STATUS_MIGRATION_REJECTED,
+			timestamp=datetime.now(timezone.utc),
+			current_cluster_imbalance=current_score,
+			predicted_cluster_imbalance=predicted_score,
+			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
+			planned_candidates=candidates,
+			details=details or "Migration plan rejected by operator",
 		)
 	)
 
@@ -124,6 +144,7 @@ def build_migration_execution_decision(
 	candidate: MigrationCandidate,
 	result: MigrationExecutionResult,
 	current_score: float | None = None,
+	predicted_score: float | None = None,
 ) -> ClusterDecision:
 	status = constants.STATUS_MIGRATION_EXECUTED if result.success else constants.STATUS_MIGRATION_FAILED
 	return set_latest_decision(
@@ -131,6 +152,7 @@ def build_migration_execution_decision(
 			status=status,
 			timestamp=datetime.now(timezone.utc),
 			current_cluster_imbalance=current_score,
+			predicted_cluster_imbalance=predicted_score,
 			threshold=config.CLUSTER_IMBALANCE_THRESHOLD,
 			selected_candidate=candidate,
 			execution_result=result,

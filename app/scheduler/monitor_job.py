@@ -7,8 +7,7 @@ from app.utils.logger import get_logger
 scheduler = AsyncIOScheduler()
 logger = get_logger(__name__)
 MONITOR_JOB_ID = "monitor_cluster_job"
-
-
+ 
 def _misfire_grace_time_seconds() -> int:
     interval_seconds = max(int(config.SCHEDULER_INTERVAL_MINUTES) * 60, 60)
     configured_seconds = max(int(config.SCHEDULER_MISFIRE_GRACE_SECONDS), 60)

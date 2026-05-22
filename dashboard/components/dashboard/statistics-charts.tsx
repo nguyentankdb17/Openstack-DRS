@@ -14,7 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { CycleMetrics } from "@/lib/types";
-import { formatPercent } from "@/lib/format-utils";
+import { formatPercent, formatTime } from "@/lib/format-utils";
 
 interface MetricsChartsProps {
   metrics: CycleMetrics;
@@ -23,10 +23,7 @@ interface MetricsChartsProps {
 export function MetricsCharts({ metrics }: MetricsChartsProps) {
   // Format data for imbalance trend
   const imbalanceData = metrics.imbalance_trend.map((point) => ({
-    time: new Date(point.timestamp).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    time: formatTime(point.timestamp),
     imbalance: Math.round(point.value * 100),
   }));
 
@@ -42,26 +39,6 @@ export function MetricsCharts({ metrics }: MetricsChartsProps) {
       value: Math.round(metrics.migration_failure_rate * 100),
       fill: "#ef4444",
     },
-  ];
-
-  // Migration duration histogram
-  const durationData = [
-    { duration: "0-30s", count: 12 },
-    { duration: "30-60s", count: 18 },
-    { duration: "60-120s", count: 25 },
-    { duration: "120-180s", count: 15 },
-    { duration: "180s+", count: 8 },
-  ];
-
-  // Cycle frequency
-  const cycleFrequencyData = [
-    { hour: "00:00", cycles: 8 },
-    { hour: "04:00", cycles: 10 },
-    { hour: "08:00", cycles: 14 },
-    { hour: "12:00", cycles: 16 },
-    { hour: "16:00", cycles: 12 },
-    { hour: "20:00", cycles: 11 },
-    { hour: "23:59", cycles: 9 },
   ];
 
   return (
@@ -129,66 +106,6 @@ export function MetricsCharts({ metrics }: MetricsChartsProps) {
             ))}
           </div>
         </div>
-      </Card>
-
-      {/* Migration Duration Distribution */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Migration Duration Distribution
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={durationData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="duration"
-              stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-            />
-            <YAxis
-              stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-              label={{ value: "Count", angle: -90, position: "insideLeft" }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#1f2937",
-                border: "1px solid #374151",
-              }}
-              labelStyle={{ color: "#f3f4f6" }}
-            />
-            <Bar dataKey="count" fill="#3b82f6" name="Migrations" />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-
-      {/* Cycle Frequency */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Cycle Frequency (Last 24h)
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={cycleFrequencyData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="hour"
-              stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-            />
-            <YAxis
-              stroke="#6b7280"
-              style={{ fontSize: "12px" }}
-              label={{ value: "Cycles", angle: -90, position: "insideLeft" }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#1f2937",
-                border: "1px solid #374151",
-              }}
-              labelStyle={{ color: "#f3f4f6" }}
-            />
-            <Bar dataKey="cycles" fill="#06b6d4" name="Cycles/Hour" />
-          </BarChart>
-        </ResponsiveContainer>
       </Card>
 
       {/* Key Statistics */}

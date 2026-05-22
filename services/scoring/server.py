@@ -1,7 +1,3 @@
-"""
-drs-scoring  —  gRPC :50053
-Computes cluster-level and host-level imbalance scores.
-"""
 import asyncio
 import grpc
 
@@ -23,10 +19,10 @@ class ScoringServicer(scoring_pb2_grpc.ScoringServiceServicer):
     ) -> scoring_pb2.ScoreClusterResponse:
         """Compute current cluster imbalance score from live Prometheus metrics."""
         try:
-            from app.domain.metrics_service import collect_5m_metrics
+            from app.domain.metrics_service import collect_averages_metric
             from app.scoring.cluster_imbalance import compute_cluster_imbalance
 
-            metrics_df = await asyncio.to_thread(collect_5m_metrics)
+            metrics_df = await asyncio.to_thread(collect_averages_metric)
             score = compute_cluster_imbalance(metrics_df)
 
             logger.info("ScoreCluster: score=%.4f", score)
@@ -44,10 +40,10 @@ class ScoringServicer(scoring_pb2_grpc.ScoringServiceServicer):
     ) -> scoring_pb2.ScoreHostResponse:
         """Compute imbalance contribution for a specific host."""
         try:
-            from app.domain.metrics_service import collect_5m_metrics
+            from app.domain.metrics_service import collect_averages_metric
             from app.scoring.cluster_imbalance import compute_cluster_imbalance
 
-            metrics_df = await asyncio.to_thread(collect_5m_metrics)
+            metrics_df = await asyncio.to_thread(collect_averages_metric)
 
             if request.host_id:
                 host_df = metrics_df[metrics_df["host"] == request.host_id]

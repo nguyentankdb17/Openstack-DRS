@@ -213,6 +213,20 @@ export function JobConfigForm({ initialData, onSave }: JobConfigFormProps) {
             min="1"
           />
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            History Lookback (minutes)
+          </label>
+          <Input
+            type="number"
+            name="history_lookback_minutes"
+            value={formData.history_lookback_minutes}
+            onChange={handleChange}
+            className="w-full"
+            min="1"
+          />
+        </div>
       </div>
 
       {/* Actions */}

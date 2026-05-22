@@ -25,10 +25,36 @@ export interface Cycle {
   threshold: number | null;
   planned_candidates: MigrationCandidate[];
   executed_candidates: MigrationCandidate[];
+  prediction_results: PredictionResults;
   details: string | null;
   decision_payload: Record<string, unknown>;
   error_message: string | null;
   created_at: DateLike;
+}
+
+export interface PredictionRow {
+  timestamp: DateLike;
+  host: string;
+  cpu: number;
+  ram: number;
+  swap: number;
+}
+
+export interface PredictionModeResult {
+  mode: string;
+  window_minutes: number;
+  selected: boolean;
+  status: string;
+  predicted_cluster_imbalance: number | null;
+  rows: PredictionRow[];
+}
+
+export type PredictionResults = Record<string, PredictionModeResult>;
+
+export interface LatestPredictionHistory {
+  cycle_id: number | null;
+  cycle_started_at: DateLike | null;
+  prediction_results: PredictionResults;
 }
 
 export interface JobConfiguration {
@@ -39,6 +65,7 @@ export interface JobConfiguration {
   prometheus_username: string;
   prometheus_password: string;
   check_event_lookback_minutes: number;
+  history_lookback_minutes: number;
   prediction_horizon_minutes: number;
 }
 

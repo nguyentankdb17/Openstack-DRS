@@ -1,11 +1,36 @@
+export const DISPLAY_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "N/A";
   return new Date(date).toLocaleDateString("en-US", {
+    timeZone: DISPLAY_TIME_ZONE,
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export function formatTime(date: Date | string | null | undefined): string {
+  if (!date) return "N/A";
+  return new Date(date).toLocaleTimeString("en-GB", {
+    timeZone: DISPLAY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export function formatTimeWithSeconds(date: Date | string | null | undefined): string {
+  if (!date) return "N/A";
+  return new Date(date).toLocaleTimeString("en-GB", {
+    timeZone: DISPLAY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
 }
 
@@ -53,6 +78,7 @@ export function getStatusColor(
       return "text-red-600 bg-red-50";
     case "paused":
     case "skipped_by_event":
+    case "migration_rejected":
       return "text-yellow-600 bg-yellow-50";
     case "idle":
     case "reevaluating":
@@ -83,6 +109,7 @@ export function getStatusBadgeVariant(
     case "paused":
     case "idle":
     case "skipped_by_event":
+    case "migration_rejected":
     case "reevaluating":
     case "current_imbalanced":
     case "predicted_imbalanced":

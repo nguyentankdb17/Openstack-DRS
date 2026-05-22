@@ -35,12 +35,14 @@ from app.grpc import (
 	scoring_pb2,
 	scoring_pb2_grpc,
 )
+from app.scoring.cluster_imbalance import compute_cluster_imbalance
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 def _make_channel(env_host: str, default_host: str, default_port: int) -> grpc.aio.Channel:
+	"""Create a gRPC channel from environment variables or defaults."""
 	host = os.getenv(env_host, default_host)
 	port_env = env_host.removesuffix("_HOST") + "_PORT"
 	port = int(os.getenv(port_env, str(default_port)))
@@ -54,18 +56,22 @@ def _make_channel(env_host: str, default_host: str, default_port: int) -> grpc.a
 
 
 def _collector_channel() -> grpc.aio.Channel:
+	"""Create a gRPC channel to the collector service."""
 	return _make_channel("DRS_COLLECTOR_HOST", "drs-collector", 50051)
 
 
 def _scoring_channel() -> grpc.aio.Channel:
+	"""Create a gRPC channel to the scoring service."""
 	return _make_channel("DRS_SCORING_HOST", "drs-scoring", 50053)
 
 
 def _analytics_channel() -> grpc.aio.Channel:
+	"""Create a gRPC channel to the analytics service."""
 	return _make_channel("DRS_ANALYTICS_HOST", "drs-analytics", 50052)
 
 
 async def run_decision_cycle(trigger_source: str = "rpc") -> dict:
+	"""Run one evaluation cycle and decide whether to migrate VMs."""
 	cycle_started_at = datetime.now(timezone.utc)
 	logger.info("[engine] Decision cycle started: trigger_source=%s", trigger_source)
 
@@ -140,6 +146,7 @@ async def run_decision_cycle(trigger_source: str = "rpc") -> dict:
 
 
 async def _score_cluster() -> float:
+	"""Compute the cluster imbalance score via scoring service or local fallback."""
 	try:
 		async with _scoring_channel() as channel:
 			stub = scoring_pb2_grpc.ScoringServiceStub(channel)
@@ -150,8 +157,6 @@ async def _score_cluster() -> float:
 		logger.warning("[engine] ScoreCluster RPC failed, falling back to local: %s", exc)
 
 	try:
-		from app.scoring.cluster_imbalance import compute_cluster_imbalance
-
 		metrics_df = await asyncio.to_thread(collect_averages_metric)
 		return compute_cluster_imbalance(metrics_df)
 	except Exception as exc:  
@@ -160,6 +165,7 @@ async def _score_cluster() -> float:
 
 
 async def _evaluate_current_window(cycle_started_at: datetime, trigger_source: str):
+	"""Evaluate the current cluster state and record failures."""
 	try:
 		metrics_df = await asyncio.to_thread(collect_averages_metric)
 		return evaluate_current(metrics_df)
@@ -178,6 +184,7 @@ async def _evaluate_current_window(cycle_started_at: datetime, trigger_source: s
 
 
 async def _record_balanced_prediction(cycle_started_at: datetime, current_decision):
+	"""Record prediction results while the current cluster is balanced."""
 	try:
 		current_score = float(current_decision.current_cluster_imbalance or 0.0)
 		window_minutes = int(config.HISTORY_LOOKBACK_MINUTES)
@@ -211,6 +218,7 @@ async def _predict_balanced_window(
 	window_minutes: int,
 	current_score: float,
 ) -> dict:
+	"""Predict the next window and evaluate expected imbalance."""
 	pred_df = await _predict_next_window_via_analytics(window_minutes)
 	predicted_decision = evaluate_predicted(
 		pred_df=pred_df,
@@ -230,15 +238,30 @@ async def _predict_balanced_window(
 
 
 def _prediction_df_records(pred_df: pd.DataFrame) -> list[dict]:
+	"""Normalize the prediction dataframe into JSON-friendly records."""
 	if pred_df is None or pred_df.empty:
 		return []
 
-	records_df = pred_df[["timestamp", "host", *METRIC_COLUMNS]].copy()
-	records_df["timestamp"] = pd.to_datetime(records_df["timestamp"]).dt.strftime("%Y-%m-%dT%H:%M:%S")
+	columns = ["timestamp", "host", *METRIC_COLUMNS]
+	records_df = pred_df.reindex(columns=columns).copy()
+	parsed_timestamps = pd.to_datetime(
+		records_df["timestamp"],
+		format="mixed",
+		errors="coerce",
+	)
+	formatted_timestamps = parsed_timestamps.dt.strftime("%Y-%m-%dT%H:%M:%S")
+	records_df["timestamp"] = formatted_timestamps.where(
+		parsed_timestamps.notna(),
+		records_df["timestamp"],
+	)
+	for metric_column in METRIC_COLUMNS:
+		records_df[metric_column] = pd.to_numeric(records_df[metric_column], errors="coerce")
+	records_df = records_df.astype(object).where(pd.notna(records_df), None)
 	return records_df.to_dict(orient="records")
 
 
 def _prediction_results_payload(prediction_result: dict) -> dict[str, dict]:
+	"""Package prediction results for cycle history storage."""
 	decision = prediction_result["decision"]
 	return {
 		"history_lookback": {
@@ -253,6 +276,7 @@ def _prediction_results_payload(prediction_result: dict) -> dict[str, dict]:
 
 
 async def _predict_next_window_via_analytics(window_minutes: int) -> pd.DataFrame:
+	"""Call the analytics service for predicted resource metrics."""
 	async with _analytics_channel() as channel:
 		stub = analytics_pb2_grpc.AnalyticsServiceStub(channel)
 		response = await stub.PredictCluster(
@@ -287,6 +311,7 @@ def _predicted_host_snapshots(
 	pred_df: pd.DataFrame,
 	current_host_metrics: list[HostMetricSnapshot],
 ) -> list[HostMetricSnapshot]:
+	"""Merge predicted metrics into current host snapshots for the planner."""
 	if pred_df is None or pred_df.empty or "host" not in pred_df.columns:
 		return current_host_metrics
 
@@ -319,12 +344,14 @@ def _predicted_host_snapshots(
 
 
 def _planning_imbalance(decision) -> float | None:
+	"""Return the imbalance score used for migration planning."""
 	if decision.status == constants.STATUS_PREDICTED_IMBALANCED:
 		return decision.predicted_cluster_imbalance
 	return decision.current_cluster_imbalance
 
 
 def _predicted_imbalance_for_plan(decision) -> float | None:
+	"""Return predicted imbalance when the decision comes from prediction."""
 	if decision.status == constants.STATUS_PREDICTED_IMBALANCED:
 		return decision.predicted_cluster_imbalance
 	return None
@@ -337,6 +364,7 @@ async def _plan_or_execute(
 	pred_df: pd.DataFrame | None = None,
 	prediction_results: dict[str, dict] | None = None,
 ) -> dict:
+	"""Build a migration plan and execute or stage it based on configuration."""
 	try:
 		prometheus_ds = PrometheusDatasource()
 		inventory_ds = OpenStackInventoryDatasource()
@@ -373,6 +401,21 @@ async def _plan_or_execute(
 		except Exception:
 			vm_host_rules, vm_vm_rules, exclude_rules = [], [], []
 
+		cooldown_vm_ids: set[str] = set()
+		try:
+			from app.domain.cycle_history_service import get_recent_migration_vm_ids
+
+			cooldown_cycles = max(0, int(getattr(config, "MIGRATION_VM_COOLDOWN_CYCLES", 2)))
+			cooldown_vm_ids = get_recent_migration_vm_ids(cooldown_cycles)
+			if cooldown_vm_ids:
+				logger.info(
+					"[engine] VM migration cooldown active: cycles=%d vm_ids=%s",
+					cooldown_cycles,
+					sorted(cooldown_vm_ids),
+				)
+		except Exception as exc:
+			logger.warning("[engine] Failed to load VM migration cooldown history: %s", exc)
+
 		migration_plan = await asyncio.to_thread(
 			planner.build_plan,
 			host_metrics=host_metrics,
@@ -384,6 +427,7 @@ async def _plan_or_execute(
 			predicted_cluster_imbalance=_predicted_imbalance_for_plan(current_decision),
 			planning_cluster_imbalance=_planning_imbalance(current_decision),
 			inventory_payload=combined_inventory,
+			cooldown_vm_ids=cooldown_vm_ids,
 		)
 		plan_decision = build_migration_plan_decision(migration_plan)
 		logger.info("[engine] Migration plan: %d candidates", len(migration_plan.candidates))
@@ -482,6 +526,7 @@ def record_engine_cycle(
 	error: str | None = None,
 	prediction_results: dict[str, dict] | None = None,
 ) -> None:
+	"""Store engine cycle history and ignore logging failures."""
 	try:
 		from app.domain.cycle_history_service import record_cycle_history
 

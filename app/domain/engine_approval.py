@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app import config
 from app.domain.decision_service import (
 	build_migration_execution_decision,
+	build_migration_rejected_decision,
 	get_latest_decision,
 )
 from app.domain.engine_cycle import record_engine_cycle
@@ -42,9 +43,22 @@ def reject_pending_plan() -> tuple[bool, str, str]:
 	if pending is None:
 		raise PendingPlanNotFoundError("No pending migration plan")
 
+	decision = build_migration_rejected_decision(
+		candidates=pending.candidates,
+		current_score=pending.current_cluster_imbalance,
+		predicted_score=pending.predicted_cluster_imbalance,
+		details=f"Pending migration plan rejected by operator (plan_id={pending.plan_id})",
+	)
+	record_engine_cycle(
+		cycle_started_at=pending.cycle_started_at or datetime.now(timezone.utc),
+		trigger_source=f"manual_reject:{pending.trigger_source}",
+		decision=decision,
+		planned=pending.candidates,
+		executed=[],
+	)
 	clear_pending()
 	logger.info("[engine] Pending plan rejected via RPC (plan_id=%s)", pending.plan_id)
-	return True, pending.plan_id, "rejected"
+	return True, pending.plan_id, decision.status
 
 
 async def execute_migration(migration_id: str) -> str:
@@ -80,7 +94,7 @@ async def approve_pending_plan(candidate_ids: list[str]) -> dict:
 
 	max_migrations = max(1, int(config.MAX_MIGRATIONS_PER_CYCLE))
 	selected = candidates_to_run[:max_migrations]
-	cycle_started_at = datetime.now(timezone.utc)
+	cycle_started_at = pending.cycle_started_at or datetime.now(timezone.utc)
 	executor = MigrationExecutor()
 	results = []
 	execution_decision = None
@@ -91,6 +105,7 @@ async def approve_pending_plan(candidate_ids: list[str]) -> dict:
 			candidate,
 			result,
 			current_score=pending.current_cluster_imbalance,
+			predicted_score=pending.predicted_cluster_imbalance,
 		)
 		results.append(execution_decision.model_dump(mode="json"))
 		logger.info(

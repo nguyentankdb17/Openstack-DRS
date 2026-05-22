@@ -18,6 +18,13 @@ class ChronosPredictor:
         self.model_path = config.CHRONOS_FINETUNED_MODEL_PATH
         self._pipeline: AGPredictor | None = None
 
+    @staticmethod
+    def _configured_step_count() -> int:
+        return max(
+            1,
+            int((config.PREDICTION_HORIZON_MINUTES * 60) / config.PREDICTION_STEP_SECONDS),
+        )
+
     def _load(self) -> None:
         if self._pipeline is not None:
             return
@@ -44,6 +51,16 @@ class ChronosPredictor:
         forecast_df = forecast_df.rename(columns={rename_col: "predictions"})[
             ["item_id", "timestamp", "predictions"]
         ]
+
+        step_count = self._configured_step_count()
+        forecast_timestamps = sorted(forecast_df["timestamp"].drop_duplicates())
+        if len(forecast_timestamps) > step_count:
+            forecast_df = forecast_df[forecast_df["timestamp"].isin(forecast_timestamps[:step_count])]
+            logger.debug(
+                "Trimmed Chronos forecast from %d to %d timestamps based on configured horizon.",
+                len(forecast_timestamps),
+                step_count,
+            )
 
         forecast_df["metric"] = forecast_df["item_id"].apply(
             lambda x: x.split(":", 1)[1] if ":" in x else x

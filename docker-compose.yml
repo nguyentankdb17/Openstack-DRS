@@ -4,13 +4,292 @@ services:
     container_name: drs-postgres
     restart: always
     environment:
-      POSTGRES_USER: drs_user
-      POSTGRES_PASSWORD: drs_password
-      POSTGRES_DB: drs_db
+      POSTGRES_USER: ${DB_USER:-drs_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-drs_password}
+      POSTGRES_DB: ${DB_NAME:-drs_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-drs_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: drs-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  drs-api:
+    # build:
+    #   context: .
+    #   dockerfile: services/api/Dockerfile
+    image: openstackdrs-drs-api:latest
+    container_name: drs-api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Database
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-drs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-drs_password}
+      - DB_NAME=${DB_NAME:-drs_db}
+      - DB_PORT=5432
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # OpenStack
+      - OS_AUTH_URL=${OS_AUTH_URL}
+      - OS_USERNAME=${OS_USERNAME}
+      - OS_PASSWORD=${OS_PASSWORD}
+      - OS_PROJECT_NAME=${OS_PROJECT_NAME}
+      - OS_REGION_NAME=${OS_REGION_NAME:-RegionOne}
+      # Prometheus
+      - PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL:-http://localhost:9090}
+      - PROMETHEUS_USERNAME=${PROMETHEUS_USERNAME:-admin}
+      - PROMETHEUS_PASSWORD=${PROMETHEUS_PASSWORD:-admin}
+      # Scheduler
+      - SCHEDULER_INTERVAL_MINUTES=${SCHEDULER_INTERVAL_MINUTES:-5}
+      - SCHEDULER_START_MODE=${SCHEDULER_START_MODE:-lazy}
+      - SCHEDULER_STARTUP_DELAY_SECONDS=${SCHEDULER_STARTUP_DELAY_SECONDS:-0}
+      - SCHEDULER_MISFIRE_GRACE_SECONDS=${SCHEDULER_MISFIRE_GRACE_SECONDS:-900}
+      # Prediction
+      - HISTORY_LOOKBACK_MINUTES=${HISTORY_LOOKBACK_MINUTES:-180}
+      - PREDICTION_HORIZON_MINUTES=${PREDICTION_HORIZON_MINUTES:-5}
+      - PREDICTION_STEP_SECONDS=${PREDICTION_STEP_SECONDS:-15}
+      # gRPC service targets
+      - DRS_COLLECTOR_HOST=drs-collector
+      - DRS_COLLECTOR_PORT=50051
+      - DRS_ANALYTICS_HOST=drs-analytics
+      - DRS_ANALYTICS_PORT=50052
+      - DRS_SCORING_HOST=drs-scoring
+      - DRS_SCORING_PORT=50053
+      - DRS_ENGINE_HOST=drs-engine
+      - DRS_ENGINE_PORT=50054
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drs-network
+    volumes:
+      - ./app:/app/app
+      - ./services:/app/services
+
+  # DRS Collector Service (gRPC :50051)
+  drs-collector:
+    build:
+      context: .
+      dockerfile: services/collector/Dockerfile
+    image: openstackdrs-drs-collector:latest
+    container_name: drs-collector
+    restart: always
+    # internal only; no host port mapping needed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Database
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-drs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-drs_password}
+      - DB_NAME=${DB_NAME:-drs_db}
+      - DB_PORT=5432
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # OpenStack
+      - OS_AUTH_URL=${OS_AUTH_URL}
+      - OS_USERNAME=${OS_USERNAME}
+      - OS_PASSWORD=${OS_PASSWORD}
+      - OS_PROJECT_NAME=${OS_PROJECT_NAME}
+      - OS_REGION_NAME=${OS_REGION_NAME:-RegionOne}
+      # Prometheus
+      - PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL:-http://localhost:9090}
+      - PROMETHEUS_USERNAME=${PROMETHEUS_USERNAME:-admin}
+      - PROMETHEUS_PASSWORD=${PROMETHEUS_PASSWORD:-admin}
+      - HISTORY_LOOKBACK_MINUTES=${HISTORY_LOOKBACK_MINUTES:-180}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drs-network
+    volumes:
+      - ./app:/app/app
+      - ./services:/app/services
+
+  # DRS Analytics Service (gRPC :50052)
+  drs-analytics:
+    build:
+      context: .
+      dockerfile: services/analytics/Dockerfile
+    # image: openstackdrs-drs-analytics:latest
+    container_name: drs-analytics
+    restart: always
+    # internal only; no host port mapping needed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Database
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-drs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-drs_password}
+      - DB_NAME=${DB_NAME:-drs_db}
+      - DB_PORT=5432
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Prometheus
+      - PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL:-http://localhost:9090}
+      - PROMETHEUS_USERNAME=${PROMETHEUS_USERNAME:-admin}
+      - PROMETHEUS_PASSWORD=${PROMETHEUS_PASSWORD:-admin}
+      # Prediction
+      - HISTORY_LOOKBACK_MINUTES=${HISTORY_LOOKBACK_MINUTES:-180}
+      - PREDICTION_HORIZON_MINUTES=${PREDICTION_HORIZON_MINUTES:-5}
+      - PREDICTION_STEP_SECONDS=${PREDICTION_STEP_SECONDS:-15}
+      - CHRONOS_MODEL_NAME=${CHRONOS_MODEL_NAME:-amazon/chronos-2}
+      - CHRONOS_DEVICE=${CHRONOS_DEVICE:-cpu}
+      - CHRONOS_FINETUNED_MODEL_PATH=${CHRONOS_CONTAINER_MODEL_PATH:-/app/app/predictor/AutogluonModels/ag-20260509_174426}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drs-network
+    volumes:
+      - ./app:/app/app
+      - ./services:/app/services
+      - ./data:/app/data
+
+  # DRS Scoring Service (gRPC :50053)
+  drs-scoring:
+    build:
+      context: .
+      dockerfile: services/scoring/Dockerfile
+    image: openstackdrs-drs-scoring:latest
+    container_name: drs-scoring
+    restart: always
+    # internal only; no host port mapping needed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Database
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-drs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-drs_password}
+      - DB_NAME=${DB_NAME:-drs_db}
+      - DB_PORT=5432
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Scoring parameters
+      - CLUSTER_IMBALANCE_THRESHOLD=${CLUSTER_IMBALANCE_THRESHOLD:-0.15}
+      - CPU_WEIGHT=${CPU_WEIGHT:-0.5}
+      - RAM_WEIGHT=${RAM_WEIGHT:-0.3}
+      - SWAP_WEIGHT=${SWAP_WEIGHT:-0.2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drs-network
+    volumes:
+      - ./app:/app/app
+      - ./services:/app/services
+
+  # DRS Engine Service (gRPC :50054)
+  drs-engine:
+    build:
+      context: .
+      dockerfile: services/engine/Dockerfile
+    image: openstackdrs-drs-engine:latest
+    container_name: drs-engine
+    restart: always
+    # internal only; no host port mapping needed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Database
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-drs_user}
+      - DB_PASSWORD=${DB_PASSWORD:-drs_password}
+      - DB_NAME=${DB_NAME:-drs_db}
+      - DB_PORT=5432
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # OpenStack
+      - OS_AUTH_URL=${OS_AUTH_URL}
+      - OS_USERNAME=${OS_USERNAME}
+      - OS_PASSWORD=${OS_PASSWORD}
+      - OS_PROJECT_NAME=${OS_PROJECT_NAME}
+      - OS_REGION_NAME=${OS_REGION_NAME:-RegionOne}
+      # Migration parameters
+      - HISTORY_LOOKBACK_MINUTES=${HISTORY_LOOKBACK_MINUTES:-180}
+      - PREDICTION_HORIZON_MINUTES=${PREDICTION_HORIZON_MINUTES:-5}
+      - PREDICTION_STEP_SECONDS=${PREDICTION_STEP_SECONDS:-15}
+      - MIGRATION_TARGET_MAX_CPU_USAGE=${MIGRATION_TARGET_MAX_CPU_USAGE:-85}
+      - MIGRATION_TARGET_MAX_RAM_USAGE=${MIGRATION_TARGET_MAX_RAM_USAGE:-85}
+      - MIGRATION_TARGET_MAX_SWAP_USAGE=${MIGRATION_TARGET_MAX_SWAP_USAGE:-80}
+      - MIGRATION_MIN_NET_BENEFIT=${MIGRATION_MIN_NET_BENEFIT:-0.1}
+      - MAX_MIGRATIONS_PER_CYCLE=${MAX_MIGRATIONS_PER_CYCLE:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drs-network
+    volumes:
+      - ./app:/app/app
+      - ./services:/app/services
+
+  # DRS Dashboard Service (Next.js)
+  drs-dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: openstackdrs-drs-dashboard:latest
+    container_name: drs-dashboard
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${ENVIRONMENT:-development}
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - drs-api
+    networks:
+      - drs-network
+
 
 volumes:
-  postgres_data: 
+  postgres_data:
+  redis_data:
+
+networks:
+  drs-network:
+    driver: bridge 

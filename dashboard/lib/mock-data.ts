@@ -58,6 +58,7 @@ export const mockCycles: Cycle[] = [
       constraints_satisfied: true,
     },
     error_message: null,
+    prediction_results: {},
     created_at: new Date("2025-04-09T14:30:00"),
   },
   {
@@ -100,6 +101,7 @@ export const mockCycles: Cycle[] = [
       constraints_satisfied: true,
     },
     error_message: null,
+    prediction_results: {},
     created_at: new Date("2025-04-09T15:00:00"),
   },
   {
@@ -152,6 +154,7 @@ export const mockCycles: Cycle[] = [
       constraints_satisfied: true,
     },
     error_message: null,
+    prediction_results: {},
     created_at: new Date("2025-04-09T15:30:00"),
   },
   {
@@ -168,6 +171,7 @@ export const mockCycles: Cycle[] = [
     details: "Failed to acquire migration lock",
     decision_payload: {},
     error_message: "Timeout waiting for resource lock on compute-02",
+    prediction_results: {},
     created_at: new Date("2025-04-09T14:00:00"),
   },
 ];
@@ -180,6 +184,7 @@ export const mockJobConfiguration: JobConfiguration = {
   prometheus_username: "admin",
   prometheus_password: "admin",
   check_event_lookback_minutes: 5,
+  history_lookback_minutes: 180,
   prediction_horizon_minutes: 5,
 };
 

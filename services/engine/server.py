@@ -12,9 +12,7 @@ import os
 import sys
 
 import grpc
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app import config
 from app.core import settings
 from app.domain.engine_approval import (
 	NoMatchingCandidateError,
@@ -31,7 +29,6 @@ from app.utils.logger import get_logger, setup_logging
 
 
 logger = get_logger(__name__)
-_scheduler: AsyncIOScheduler | None = None
 
 
 class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
@@ -41,7 +38,9 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 		context: grpc.ServicerContext,
 	) -> engine_pb2.ComputeDecisionResponse:
 		try:
-			result = await run_decision_cycle(trigger_source=request.trigger_source or "rpc")
+			trigger_source = request.trigger_source or "rpc"
+			logger.info("[engine] ComputeDecision requested: trigger_source=%s", trigger_source)
+			result = await run_decision_cycle(trigger_source=trigger_source)
 			return engine_pb2.ComputeDecisionResponse(
 				status=result.get("status", "unknown"),
 				plan_id=str(result.get("plan_id", "")),
@@ -49,7 +48,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 				executed=int(result.get("executed", 0) or 0),
 				error=str(result.get("error", "")),
 			)
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("ComputeDecision error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -67,7 +66,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.NOT_FOUND)
 			return engine_pb2.ExecuteMigrationResponse(status="no_pending_plan")
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("ExecuteMigration error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -80,7 +79,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 	) -> engine_pb2.GetLatestDecisionResponse:
 		try:
 			return engine_pb2.GetLatestDecisionResponse(decision_json=latest_decision_json())
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("GetLatestDecision error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -94,7 +93,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 		try:
 			has_pending, plan_json = pending_plan_json()
 			return engine_pb2.GetPendingPlanResponse(pending=has_pending, plan_json=plan_json)
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("GetPendingPlan error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -116,7 +115,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.NOT_FOUND)
 			return engine_pb2.RejectPendingPlanResponse(rejected=False, status="no_pending_plan")
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("RejectPendingPlan error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -152,7 +151,7 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 				status="no_matching_candidates",
 				error=str(exc),
 			)
-		except Exception as exc:  # pylint: disable=broad-except
+		except Exception as exc:  
 			logger.exception("ApprovePendingPlan error: %s", exc)
 			context.set_details(str(exc))
 			context.set_code(grpc.StatusCode.INTERNAL)
@@ -163,29 +162,11 @@ class EngineServicer(engine_pb2_grpc.EngineServiceServicer):
 			)
 
 
-def _start_scheduler() -> None:
-	global _scheduler
-	interval = max(1, int(config.SCHEDULER_INTERVAL_MINUTES))
-	_scheduler = AsyncIOScheduler()
-	_scheduler.add_job(
-		run_decision_cycle,
-		"interval",
-		id="engine_decision_cycle",
-		minutes=interval,
-		max_instances=1,
-		coalesce=True,
-		replace_existing=True,
-		kwargs={"trigger_source": "scheduler"},
-	)
-	_scheduler.start()
-	logger.info("[engine] Scheduler started - decision cycle every %d min", interval)
-
-
 async def serve(host: str = "0.0.0.0", port: int = 50054) -> None:
 	from app.db.postgres import initialize_database
 
 	initialize_database()
-	_start_scheduler()
+	logger.info("[engine] Internal scheduler disabled - waiting for ComputeDecision RPC")
 
 	server = grpc.aio.server(
 		options=[
@@ -200,12 +181,7 @@ async def serve(host: str = "0.0.0.0", port: int = 50054) -> None:
 	server.add_insecure_port(listen_addr)
 	logger.info("Starting drs-engine gRPC server on %s", listen_addr)
 	await server.start()
-
-	try:
-		await server.wait_for_termination()
-	finally:
-		if _scheduler and _scheduler.running:
-			_scheduler.shutdown(wait=False)
+	await server.wait_for_termination()
 
 
 if __name__ == "__main__":

@@ -11,8 +11,8 @@ redis==7.0.0
 aioredis==2.0.0
 
 # Data Processing
-pandas==3.0.1
-numpy==2.4.3
+pandas==2.3.3
+numpy==1.26.4
 
 # Utilities
 python-dotenv==1.1.1
@@ -20,6 +20,11 @@ requests==2.32.5
 
 # Scheduling
 APScheduler==3.11.2
+
+# gRPC - Inter-service RPC communication
+grpcio==1.68.1
+grpcio-tools==1.68.1
+protobuf==5.29.2
 
 # OpenStack Integration
 openstacksdk==4.7.0
@@ -33,12 +38,14 @@ PyNaCl==1.5.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
 
-# Optional: Analytics & ML (install separately for GPU support)
-chronos-forecasting  # Time-series forecasting for predictive DRS
-
 # Optional: Database Support
 psycopg2-binary==2.9.10
 PyMySQL==1.1.1
+
+# Optional: Document generation
+reportlab==3.6.13
+fpdf2==2.8.1
+Pillow==10.4.0
 
 # Type Checking & Linting (dev)
 # mypy==1.15.0  # Uncomment for development
