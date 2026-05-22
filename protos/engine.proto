@@ -25,10 +25,11 @@ message ComputeDecisionResponse {
 }
 
 message MigrationCandidate {
+  reserved 4;
+
   string vm_id = 1;
   string source_host = 2;
   string target_host = 3;
-  double migration_cost = 4;
   repeated string policy_reasons = 5;
   string score_breakdown_json = 6;
 }

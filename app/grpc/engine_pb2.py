@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x65ngine.proto\x12\ndrs.engine\"0\n\x16\x43omputeDecisionRequest\x12\x16\n\x0etrigger_source\x18\x01 \x01(\t\"\xa0\x01\n\x17\x43omputeDecisionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x32\n\ncandidates\x18\x02 \x03(\x0b\x32\x1e.drs.engine.MigrationCandidate\x12\x0f\n\x07plan_id\x18\x03 \x01(\t\x12\x0f\n\x07planned\x18\x04 \x01(\x05\x12\x10\n\x08\x65xecuted\x18\x05 \x01(\x05\x12\r\n\x05\x65rror\x18\x06 \x01(\t\"\x9b\x01\n\x12MigrationCandidate\x12\r\n\x05vm_id\x18\x01 \x01(\t\x12\x13\n\x0bsource_host\x18\x02 \x01(\t\x12\x13\n\x0btarget_host\x18\x03 \x01(\t\x12\x16\n\x0emigration_cost\x18\x04 \x01(\x01\x12\x16\n\x0epolicy_reasons\x18\x05 \x03(\t\x12\x1c\n\x14score_breakdown_json\x18\x06 \x01(\t\"/\n\x17\x45xecuteMigrationRequest\x12\x14\n\x0cmigration_id\x18\x01 \x01(\t\"*\n\x18\x45xecuteMigrationResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\"\x1a\n\x18GetLatestDecisionRequest\"2\n\x19GetLatestDecisionResponse\x12\x15\n\rdecision_json\x18\x01 \x01(\t\"\x17\n\x15GetPendingPlanRequest\"<\n\x16GetPendingPlanResponse\x12\x0f\n\x07pending\x18\x01 \x01(\x08\x12\x11\n\tplan_json\x18\x02 \x01(\t\"\x1a\n\x18RejectPendingPlanRequest\"N\n\x19RejectPendingPlanResponse\x12\x10\n\x08rejected\x18\x01 \x01(\x08\x12\x0f\n\x07plan_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\"2\n\x19\x41pprovePendingPlanRequest\x12\x15\n\rcandidate_ids\x18\x01 \x03(\t\"\x86\x01\n\x1a\x41pprovePendingPlanResponse\x12\x10\n\x08\x61pproved\x18\x01 \x01(\x08\x12\x0f\n\x07plan_id\x18\x02 \x01(\t\x12\x10\n\x08\x65xecuted\x18\x03 \x01(\x05\x12\x14\n\x0cresults_json\x18\x04 \x01(\t\x12\x0e\n\x06status\x18\x05 \x01(\t\x12\r\n\x05\x65rror\x18\x06 \x01(\t2\xd8\x04\n\rEngineService\x12\\\n\x0f\x43omputeDecision\x12\".drs.engine.ComputeDecisionRequest\x1a#.drs.engine.ComputeDecisionResponse\"\x00\x12_\n\x10\x45xecuteMigration\x12#.drs.engine.ExecuteMigrationRequest\x1a$.drs.engine.ExecuteMigrationResponse\"\x00\x12\x62\n\x11GetLatestDecision\x12$.drs.engine.GetLatestDecisionRequest\x1a%.drs.engine.GetLatestDecisionResponse\"\x00\x12Y\n\x0eGetPendingPlan\x12!.drs.engine.GetPendingPlanRequest\x1a\".drs.engine.GetPendingPlanResponse\"\x00\x12\x62\n\x11RejectPendingPlan\x12$.drs.engine.RejectPendingPlanRequest\x1a%.drs.engine.RejectPendingPlanResponse\"\x00\x12\x65\n\x12\x41pprovePendingPlan\x12%.drs.engine.ApprovePendingPlanRequest\x1a&.drs.engine.ApprovePendingPlanResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x65ngine.proto\x12\ndrs.engine\"0\n\x16\x43omputeDecisionRequest\x12\x16\n\x0etrigger_source\x18\x01 \x01(\t\"\xa0\x01\n\x17\x43omputeDecisionResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x32\n\ncandidates\x18\x02 \x03(\x0b\x32\x1e.drs.engine.MigrationCandidate\x12\x0f\n\x07plan_id\x18\x03 \x01(\t\x12\x0f\n\x07planned\x18\x04 \x01(\x05\x12\x10\n\x08\x65xecuted\x18\x05 \x01(\x05\x12\r\n\x05\x65rror\x18\x06 \x01(\t\"\x89\x01\n\x12MigrationCandidate\x12\r\n\x05vm_id\x18\x01 \x01(\t\x12\x13\n\x0bsource_host\x18\x02 \x01(\t\x12\x13\n\x0btarget_host\x18\x03 \x01(\t\x12\x16\n\x0epolicy_reasons\x18\x05 \x03(\t\x12\x1c\n\x14score_breakdown_json\x18\x06 \x01(\tJ\x04\x08\x04\x10\x05\"/\n\x17\x45xecuteMigrationRequest\x12\x14\n\x0cmigration_id\x18\x01 \x01(\t\"*\n\x18\x45xecuteMigrationResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\"\x1a\n\x18GetLatestDecisionRequest\"2\n\x19GetLatestDecisionResponse\x12\x15\n\rdecision_json\x18\x01 \x01(\t\"\x17\n\x15GetPendingPlanRequest\"<\n\x16GetPendingPlanResponse\x12\x0f\n\x07pending\x18\x01 \x01(\x08\x12\x11\n\tplan_json\x18\x02 \x01(\t\"\x1a\n\x18RejectPendingPlanRequest\"N\n\x19RejectPendingPlanResponse\x12\x10\n\x08rejected\x18\x01 \x01(\x08\x12\x0f\n\x07plan_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\"2\n\x19\x41pprovePendingPlanRequest\x12\x15\n\rcandidate_ids\x18\x01 \x03(\t\"\x86\x01\n\x1a\x41pprovePendingPlanResponse\x12\x10\n\x08\x61pproved\x18\x01 \x01(\x08\x12\x0f\n\x07plan_id\x18\x02 \x01(\t\x12\x10\n\x08\x65xecuted\x18\x03 \x01(\x05\x12\x14\n\x0cresults_json\x18\x04 \x01(\t\x12\x0e\n\x06status\x18\x05 \x01(\t\x12\r\n\x05\x65rror\x18\x06 \x01(\t2\xd8\x04\n\rEngineService\x12\\\n\x0f\x43omputeDecision\x12\".drs.engine.ComputeDecisionRequest\x1a#.drs.engine.ComputeDecisionResponse\"\x00\x12_\n\x10\x45xecuteMigration\x12#.drs.engine.ExecuteMigrationRequest\x1a$.drs.engine.ExecuteMigrationResponse\"\x00\x12\x62\n\x11GetLatestDecision\x12$.drs.engine.GetLatestDecisionRequest\x1a%.drs.engine.GetLatestDecisionResponse\"\x00\x12Y\n\x0eGetPendingPlan\x12!.drs.engine.GetPendingPlanRequest\x1a\".drs.engine.GetPendingPlanResponse\"\x00\x12\x62\n\x11RejectPendingPlan\x12$.drs.engine.RejectPendingPlanRequest\x1a%.drs.engine.RejectPendingPlanResponse\"\x00\x12\x65\n\x12\x41pprovePendingPlan\x12%.drs.engine.ApprovePendingPlanRequest\x1a&.drs.engine.ApprovePendingPlanResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,27 +36,27 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_COMPUTEDECISIONRESPONSE']._serialized_start=79
   _globals['_COMPUTEDECISIONRESPONSE']._serialized_end=239
   _globals['_MIGRATIONCANDIDATE']._serialized_start=242
-  _globals['_MIGRATIONCANDIDATE']._serialized_end=397
-  _globals['_EXECUTEMIGRATIONREQUEST']._serialized_start=399
-  _globals['_EXECUTEMIGRATIONREQUEST']._serialized_end=446
-  _globals['_EXECUTEMIGRATIONRESPONSE']._serialized_start=448
-  _globals['_EXECUTEMIGRATIONRESPONSE']._serialized_end=490
-  _globals['_GETLATESTDECISIONREQUEST']._serialized_start=492
-  _globals['_GETLATESTDECISIONREQUEST']._serialized_end=518
-  _globals['_GETLATESTDECISIONRESPONSE']._serialized_start=520
-  _globals['_GETLATESTDECISIONRESPONSE']._serialized_end=570
-  _globals['_GETPENDINGPLANREQUEST']._serialized_start=572
-  _globals['_GETPENDINGPLANREQUEST']._serialized_end=595
-  _globals['_GETPENDINGPLANRESPONSE']._serialized_start=597
-  _globals['_GETPENDINGPLANRESPONSE']._serialized_end=657
-  _globals['_REJECTPENDINGPLANREQUEST']._serialized_start=659
-  _globals['_REJECTPENDINGPLANREQUEST']._serialized_end=685
-  _globals['_REJECTPENDINGPLANRESPONSE']._serialized_start=687
-  _globals['_REJECTPENDINGPLANRESPONSE']._serialized_end=765
-  _globals['_APPROVEPENDINGPLANREQUEST']._serialized_start=767
-  _globals['_APPROVEPENDINGPLANREQUEST']._serialized_end=817
-  _globals['_APPROVEPENDINGPLANRESPONSE']._serialized_start=820
-  _globals['_APPROVEPENDINGPLANRESPONSE']._serialized_end=954
-  _globals['_ENGINESERVICE']._serialized_start=957
-  _globals['_ENGINESERVICE']._serialized_end=1557
+  _globals['_MIGRATIONCANDIDATE']._serialized_end=379
+  _globals['_EXECUTEMIGRATIONREQUEST']._serialized_start=381
+  _globals['_EXECUTEMIGRATIONREQUEST']._serialized_end=428
+  _globals['_EXECUTEMIGRATIONRESPONSE']._serialized_start=430
+  _globals['_EXECUTEMIGRATIONRESPONSE']._serialized_end=472
+  _globals['_GETLATESTDECISIONREQUEST']._serialized_start=474
+  _globals['_GETLATESTDECISIONREQUEST']._serialized_end=500
+  _globals['_GETLATESTDECISIONRESPONSE']._serialized_start=502
+  _globals['_GETLATESTDECISIONRESPONSE']._serialized_end=552
+  _globals['_GETPENDINGPLANREQUEST']._serialized_start=554
+  _globals['_GETPENDINGPLANREQUEST']._serialized_end=577
+  _globals['_GETPENDINGPLANRESPONSE']._serialized_start=579
+  _globals['_GETPENDINGPLANRESPONSE']._serialized_end=639
+  _globals['_REJECTPENDINGPLANREQUEST']._serialized_start=641
+  _globals['_REJECTPENDINGPLANREQUEST']._serialized_end=667
+  _globals['_REJECTPENDINGPLANRESPONSE']._serialized_start=669
+  _globals['_REJECTPENDINGPLANRESPONSE']._serialized_end=747
+  _globals['_APPROVEPENDINGPLANREQUEST']._serialized_start=749
+  _globals['_APPROVEPENDINGPLANREQUEST']._serialized_end=799
+  _globals['_APPROVEPENDINGPLANRESPONSE']._serialized_start=802
+  _globals['_APPROVEPENDINGPLANRESPONSE']._serialized_end=936
+  _globals['_ENGINESERVICE']._serialized_start=939
+  _globals['_ENGINESERVICE']._serialized_end=1539
 # @@protoc_insertion_point(module_scope)

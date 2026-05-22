@@ -66,7 +66,6 @@ class MigrationCandidate(BaseModel):
 	vm_id: str
 	source_host: str
 	target_host: str
-	migration_cost: float = Field(default=0)
 	policy_reasons: list[str] = Field(default_factory=list)
 	score_breakdown: dict[str, float] = Field(default_factory=dict)
 
