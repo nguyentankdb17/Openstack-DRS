@@ -16,3 +16,4 @@ dist/
 build/
 **/lightning_logs/**
 *.pkl
+requirements-*.txt
