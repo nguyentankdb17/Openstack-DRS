@@ -21,9 +21,11 @@ export function StatusBadge({ status, withDot = true }: StatusBadgeProps) {
                 ? "#2563eb"
                 : status === "completed" || status === "current_balanced" || status === "predicted_balanced"
                   ? "#16a34a"
-                  : status === "failed" || status === "error" || status === "migration_failed"
-                    ? "#dc2626"
-                    : "#eab308",
+                : status === "failed" || status === "error" || status === "migration_failed"
+                  ? "#dc2626"
+                    : status === "migration_rejected"
+                      ? "#ca8a04"
+                      : "#eab308",
           }}
         ></span>
       )}

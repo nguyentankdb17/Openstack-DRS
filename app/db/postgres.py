@@ -110,6 +110,7 @@ def initialize_database() -> None:
 					threshold DOUBLE PRECISION,
 					planned_candidates JSONB NOT NULL DEFAULT '[]'::jsonb,
 					executed_candidates JSONB NOT NULL DEFAULT '[]'::jsonb,
+					prediction_results JSONB NOT NULL DEFAULT '{}'::jsonb,
 					details TEXT,
 					decision_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
 					error_message TEXT,
@@ -127,6 +128,12 @@ def initialize_database() -> None:
 				"""
 				ALTER TABLE drs_cycle_history
 				ADD COLUMN IF NOT EXISTS executed_candidates JSONB NOT NULL DEFAULT '[]'::jsonb
+				"""
+			)
+			cursor.execute(
+				"""
+				ALTER TABLE drs_cycle_history
+				ADD COLUMN IF NOT EXISTS prediction_results JSONB NOT NULL DEFAULT '{}'::jsonb
 				"""
 			)
 			cursor.execute(

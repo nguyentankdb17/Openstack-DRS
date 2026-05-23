@@ -1,0 +1,60 @@
+Beginning AutoGluon training... Time limit = 3600s
+AutoGluon will save models to '/home/nguyentan/OpenstackDRS/app/predictor/AutogluonModels/ag-20260509_174426'
+=================== System Info ===================
+AutoGluon Version:  1.5.0
+Python Version:     3.12.3
+Operating System:   Linux
+Platform Machine:   x86_64
+Platform Version:   #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+CPU Count:          3
+Pytorch Version:    2.9.1+cu128
+CUDA Version:       12.8
+GPU Memory:         GPU 0: 2.00/2.00 GB
+Total GPU Memory:   Free: 2.00 GB, Allocated: 1.00 GB, Total: 2.00 GB
+GPU Count:          1
+Memory Avail:       0.65 GB / 3.83 GB (17.1%)
+Disk Space Avail:   903.44 GB / 1006.85 GB (89.7%)
+===================================================
+
+Fitting with arguments:
+{'enable_ensemble': False,
+ 'eval_metric': MASE,
+ 'hyperparameters': {'Chronos2': [{'ag_args': {'name_suffix': 'ZeroShot'}},
+                                  {'ag_args': {'name_suffix': 'FineTuned'},
+                                   'fine_tune': True}]},
+ 'known_covariates_names': [],
+ 'num_val_windows': 1,
+ 'prediction_length': 300,
+ 'quantile_levels': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+ 'random_seed': 123,
+ 'refit_every_n_windows': 1,
+ 'refit_full': False,
+ 'skip_model_selection': False,
+ 'target': 'target',
+ 'time_limit': 3600,
+ 'verbosity': 2}
+
+Inferred time series frequency: '15s'
+Provided train_data has 62750 rows, 2 time series. Median time series length is 31375 (min=31375, max=31375). 
+
+Provided data contains following columns:
+	target: 'target'
+
+AutoGluon will gauge predictive performance using evaluation metric: 'MASE'
+	This metric's sign has been flipped to adhere to being higher_is_better. The metric score can be multiplied by -1 to get the metric value.
+===================================================
+
+Starting training. Start time is 2026-05-09 17:44:32
+Models that will be trained: ['Chronos2ZeroShot', 'Chronos2FineTuned']
+Training timeseries model Chronos2ZeroShot. Training for up to 1797.1s of the 3594.2s of remaining time.
+	-3.6270       = Validation score (-MASE)
+	11.59   s     = Training runtime
+	2.32    s     = Validation (prediction) runtime
+Training timeseries model Chronos2FineTuned. Training for up to 3580.3s of the 3580.3s of remaining time.
+	-3.5876       = Validation score (-MASE)
+	3244.91 s     = Training runtime
+	2.75    s     = Validation (prediction) runtime
+Training complete. Models trained: ['Chronos2ZeroShot', 'Chronos2FineTuned']
+Total runtime: 3261.64 s
+Best model: Chronos2FineTuned
+Best model score: -3.5876

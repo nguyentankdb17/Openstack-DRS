@@ -88,6 +88,7 @@ class MigrationPlan(BaseModel):
 	generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	candidates: list[MigrationCandidate] = Field(default_factory=list)
 	current_cluster_imbalance: float | None = None
+	predicted_cluster_imbalance: float | None = None
 	details: str | None = None
 
 
@@ -167,10 +168,17 @@ class CycleHistoryRecord(BaseModel):
 	threshold: float | None = None
 	planned_candidates: list[MigrationCandidate] = Field(default_factory=list)
 	executed_candidates: list[MigrationCandidate] = Field(default_factory=list)
+	prediction_results: dict[str, Any] = Field(default_factory=dict)
 	details: str | None = None
 	decision_payload: dict[str, Any] = Field(default_factory=dict)
 	error_message: str | None = None
 	created_at: datetime
+
+
+class LatestPredictionHistoryResponse(BaseModel):
+	cycle_id: int | None = None
+	cycle_started_at: datetime | None = None
+	prediction_results: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimeConfigUpdateRequest(BaseModel):
@@ -189,9 +197,11 @@ class PendingPlan(BaseModel):
 	"""A migration plan waiting for manual approval."""
 	plan_id: str
 	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+	cycle_started_at: datetime | None = None
 	trigger_source: str
 	candidates: list[MigrationCandidate] = Field(default_factory=list)
 	current_cluster_imbalance: float | None = None
+	predicted_cluster_imbalance: float | None = None
 	details: str | None = None
 
 

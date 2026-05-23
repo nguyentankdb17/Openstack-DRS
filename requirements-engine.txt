@@ -1,0 +1,11 @@
+# Minimal runtime dependencies for services/engine.
+grpcio==1.68.1
+protobuf==5.29.2
+python-dotenv==1.1.1
+pydantic==2.12.5
+pandas==2.3.3
+numpy==1.26.4
+requests==2.32.5
+psycopg2-binary==2.9.10
+openstacksdk==4.7.0
+APScheduler==3.11.2

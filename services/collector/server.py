@@ -23,8 +23,8 @@ class CollectorServicer(collector_pb2_grpc.CollectorServiceServicer):
     ) -> collector_pb2.CollectMetricsResponse:
         """Trigger Prometheus metrics collection and persist to DB / cache."""
         try:
-            from app.domain.metrics_service import collect_5m_metrics
-            metrics_df = await asyncio.to_thread(collect_5m_metrics)
+            from app.domain.metrics_service import collect_averages_metric
+            metrics_df = await asyncio.to_thread(collect_averages_metric)
             row_count = len(metrics_df) if metrics_df is not None else 0
             logger.info("CollectMetrics: collected %d host rows", row_count)
             return collector_pb2.CollectMetricsResponse(

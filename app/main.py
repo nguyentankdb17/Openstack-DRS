@@ -29,7 +29,8 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     setup_logging(settings.app.log_level)
     initialize_database()
-    await start_monitor_scheduler()
+    scheduler_status = await start_monitor_scheduler()
+    logger.info("[API Service] Monitor scheduler initialized: %s", scheduler_status)
 
     try:
         yield

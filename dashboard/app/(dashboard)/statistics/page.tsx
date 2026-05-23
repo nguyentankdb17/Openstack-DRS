@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { MetricsCharts } from "@/components/dashboard/statistics-charts";
 import { buildMetricsFromCycles, fetchCycleHistory } from "@/lib/api";
+import { formatTimeWithSeconds } from "@/lib/format-utils";
 import { Cycle } from "@/lib/types";
 import { RefreshCw, Download } from "lucide-react";
 
@@ -108,7 +109,7 @@ export default function StatisticsPage() {
       <Card className="p-4 mb-8 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
         <p className="text-sm text-blue-900 dark:text-blue-100">
           <strong>Auto-refresh enabled:</strong> Statistics refresh every {refreshInterval} seconds.
-          Last updated: {lastUpdated.toLocaleTimeString()}
+          Last updated: {formatTimeWithSeconds(lastUpdated)} GMT+07
         </p>
       </Card>
 

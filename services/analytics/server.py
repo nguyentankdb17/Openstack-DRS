@@ -85,30 +85,82 @@ class AnalyticsServicer(analytics_pb2_grpc.AnalyticsServiceServicer):
         context: grpc.ServicerContext,
     ) -> analytics_pb2.PredictClusterResponse:
         """
-        Run Chronos forecasting for all hosts using the requested history window.
+        Run Chronos forecasting for all hosts using the requested history lookback.
         """
         try:
             from app import config
-            from app.domain.metrics_service import collect_fully_metric
+            from app.decision.datasource.openstack_inventory import OpenStackInventoryDatasource
+            from app.domain.metrics_service import collect_averages_metric, collect_fully_metric
             from app.domain.prediction_service import predict_next_window
 
-            history_window = int(request.history_window_minutes or config.HISTORY_LOOKBACK_MINUTES)
+            history_lookback = int(request.history_lookback_minutes or config.HISTORY_LOOKBACK_MINUTES)
+            current_df = await asyncio.to_thread(collect_averages_metric)
+            current_hosts = set()
+            if current_df is not None and not current_df.empty and "host" in current_df.columns:
+                current_hosts = {str(host) for host in current_df["host"].dropna().unique()}
+            if not current_hosts:
+                logger.warning("PredictCluster: no current host metrics available; skipping forecast")
+                return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
+
+            inventory_datasource = OpenStackInventoryDatasource()
+            if inventory_datasource.is_available():
+                enabled_host_aliases = await asyncio.to_thread(
+                    inventory_datasource.list_enabled_host_aliases
+                )
+                if enabled_host_aliases:
+                    before_count = len(current_hosts)
+                    current_hosts = {
+                        host for host in current_hosts if host in enabled_host_aliases
+                    }
+                    after_count = len(current_hosts)
+                    if after_count < before_count:
+                        logger.info(
+                            "PredictCluster: excluded disabled OpenStack hosts before forecast: before=%d after=%d",
+                            before_count,
+                            after_count,
+                        )
+                if not current_hosts:
+                    logger.warning(
+                        "PredictCluster: no enabled hosts with current metrics available; skipping forecast"
+                    )
+                    return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
+
             history_df = await asyncio.to_thread(
                 collect_fully_metric,
-                window_minutes=history_window,
+                window_minutes=history_lookback,
             )
+            if "host" in history_df.columns:
+                before_count = int(history_df["host"].nunique(dropna=True))
+                history_df = history_df[history_df["host"].astype(str).isin(current_hosts)]
+                after_count = int(history_df["host"].nunique(dropna=True))
+                if after_count < before_count:
+                    logger.info(
+                        "PredictCluster: excluded stale hosts without current metrics before forecast: before=%d after=%d",
+                        before_count,
+                        after_count,
+                    )
             if history_df.empty:
                 logger.warning(
-                    "PredictCluster: no history data for history_window_minutes=%d",
-                    history_window,
+                    "PredictCluster: no history data for history_lookback_minutes=%d",
+                    history_lookback,
                 )
                 return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
 
             pred_df = await asyncio.to_thread(predict_next_window, history_df)
+            if "host" in pred_df.columns:
+                before_count = int(pred_df["host"].nunique(dropna=True))
+                pred_df = pred_df[pred_df["host"].astype(str).isin(current_hosts)]
+                after_count = int(pred_df["host"].nunique(dropna=True))
+                if after_count < before_count:
+                    logger.info(
+                        "PredictCluster: excluded ineligible hosts from prediction output: before=%d after=%d",
+                        before_count,
+                        after_count,
+                    )
             if pred_df.empty:
                 logger.warning(
-                    "PredictCluster: no prediction rows for history_window_minutes=%d",
-                    history_window,
+                    "PredictCluster: no prediction rows for history_lookback_minutes=%d",
+                    history_lookback,
                 )
                 return analytics_pb2.PredictClusterResponse(rows=[], model="chronos")
 
@@ -128,8 +180,8 @@ class AnalyticsServicer(analytics_pb2_grpc.AnalyticsServiceServicer):
                 )
 
             logger.info(
-                "PredictCluster: history_window=%d horizon=%d rows=%d hosts=%d",
-                history_window,
+                "PredictCluster: history_lookback=%d horizon=%d rows=%d hosts=%d",
+                history_lookback,
                 request.horizon_minutes,
                 len(rows),
                 pred_df["host"].nunique(dropna=True) if "host" in pred_df.columns else 0,

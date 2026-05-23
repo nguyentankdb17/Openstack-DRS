@@ -4,10 +4,12 @@ import {
   CycleMetrics,
   JobConfiguration,
   JobStatus,
+  LatestPredictionHistory,
   MetricPoint,
   MigrationCandidate,
   MigrationConstraint,
   PendingPlan,
+  PredictionResults,
 } from "@/lib/types";
 
 const API_BASE_URL =
@@ -42,7 +44,18 @@ async function request<T>(
 }
 
 function asDate(value: string | null | undefined): Date | null {
-  return value ? new Date(value) : null;
+  return value ? parseApiDate(value) : null;
+}
+
+function parseApiDate(value: Date | string): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const normalized = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+    ? `${value}Z`
+    : value;
+  return new Date(normalized);
 }
 
 function mapCandidate(candidate: MigrationCandidate): MigrationCandidate {
@@ -62,12 +75,30 @@ function mapCandidate(candidate: MigrationCandidate): MigrationCandidate {
 function mapCycle(cycle: Cycle): Cycle {
   return {
     ...cycle,
-    cycle_started_at: new Date(cycle.cycle_started_at),
+    cycle_started_at: parseApiDate(cycle.cycle_started_at),
     cycle_finished_at: asDate(cycle.cycle_finished_at as string | null),
-    created_at: new Date(cycle.created_at),
+    created_at: parseApiDate(cycle.created_at),
     planned_candidates: (cycle.planned_candidates ?? []).map(mapCandidate),
     executed_candidates: (cycle.executed_candidates ?? []).map(mapCandidate),
+    prediction_results: normalizePredictionResults(cycle.prediction_results),
   };
+}
+
+function normalizePredictionResults(results?: PredictionResults): PredictionResults {
+  const normalized: PredictionResults = {};
+  Object.entries(results ?? {}).forEach(([mode, result]) => {
+    normalized[mode] = {
+      ...result,
+      rows: (result.rows ?? []).map((row) => ({
+        ...row,
+        timestamp: parseApiDate(row.timestamp),
+        cpu: Number(row.cpu ?? 0),
+        ram: Number(row.ram ?? 0),
+        swap: Number(row.swap ?? 0),
+      })),
+    };
+  });
+  return normalized;
 }
 
 function normalizeJobStatus(data: Record<string, unknown>): JobStatus {
@@ -99,11 +130,11 @@ export async function fetchLatestMonitorDecision(): Promise<ClusterDecision> {
   const response = await request<{ data: ClusterDecision }>("/monitor/latest");
   return {
     ...response.data,
-    timestamp: new Date(response.data.timestamp),
+    timestamp: parseApiDate(response.data.timestamp),
     execution_result: response.data.execution_result
       ? {
           ...response.data.execution_result,
-          executed_at: new Date(response.data.execution_result.executed_at),
+          executed_at: parseApiDate(response.data.execution_result.executed_at),
         }
       : null,
     planned_candidates: (response.data.planned_candidates ?? []).map(mapCandidate),
@@ -121,6 +152,15 @@ export async function fetchCycleHistory(limit = 50): Promise<Cycle[]> {
 export async function fetchCycleById(id: number): Promise<Cycle | null> {
   const cycles = await fetchCycleHistory(500);
   return cycles.find((cycle) => cycle.id === id) ?? null;
+}
+
+export async function fetchLatestPredictionHistory(): Promise<LatestPredictionHistory> {
+  const response = await request<LatestPredictionHistory>("/cycles/history/latest-predict");
+  return {
+    ...response,
+    cycle_started_at: response.cycle_started_at ? parseApiDate(response.cycle_started_at) : null,
+    prediction_results: normalizePredictionResults(response.prediction_results),
+  };
 }
 
 export async function fetchMonitorJobStatus(): Promise<JobStatus> {
@@ -155,6 +195,7 @@ function mapConfigToJobConfiguration(config: Record<string, unknown>): JobConfig
     prometheus_username: String(config.PROMETHEUS_USERNAME ?? ""),
     prometheus_password: String(config.PROMETHEUS_PASSWORD ?? ""),
     check_event_lookback_minutes: Number(config.CHECK_EVENT_LOOKBACK_MINUTES ?? 5),
+    history_lookback_minutes: Number(config.HISTORY_LOOKBACK_MINUTES ?? 180),
     prediction_horizon_minutes: Number(config.PREDICTION_HORIZON_MINUTES ?? 5),
   };
 }
@@ -168,6 +209,7 @@ function mapJobConfigurationToUpdates(data: JobConfiguration): Record<string, un
     PROMETHEUS_USERNAME: data.prometheus_username,
     PROMETHEUS_PASSWORD: data.prometheus_password,
     CHECK_EVENT_LOOKBACK_MINUTES: data.check_event_lookback_minutes,
+    HISTORY_LOOKBACK_MINUTES: data.history_lookback_minutes,
     PREDICTION_HORIZON_MINUTES: data.prediction_horizon_minutes,
   };
 }

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { fetchCycleHistory } from "@/lib/api";
-import { formatDate, formatPercent } from "@/lib/format-utils";
+import { formatDate, formatPercent, formatTimeWithSeconds } from "@/lib/format-utils";
 import { Cycle } from "@/lib/types";
 import { ChevronRight } from "lucide-react";
+
+const HISTORY_REFRESH_INTERVAL_MS = 15_000;
 
 export default function HistoryPage() {
   const ITEMS_PER_PAGE = 20;
@@ -16,6 +18,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(cycles.length / ITEMS_PER_PAGE));
   const paginatedCycles = useMemo(() => {
@@ -38,29 +41,52 @@ export default function HistoryPage() {
     return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
   }, [currentPage, totalPages]);
 
-  useEffect(() => {
-    const load = async () => {
+  const loadHistory = useCallback(
+    async ({ showLoading, resetPage }: { showLoading: boolean; resetPage: boolean }) => {
       try {
-        setLoading(true);
+        if (showLoading) {
+          setLoading(true);
+        }
         setError(null);
         const data = await fetchCycleHistory(100);
         setCycles(data);
-        setCurrentPage(1);
+        setLastUpdatedAt(new Date());
+        if (resetPage) {
+          setCurrentPage(1);
+        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load cycle history");
       } finally {
-        setLoading(false);
+        if (showLoading) {
+          setLoading(false);
+        }
       }
-    };
+    },
+    []
+  );
 
-    void load();
-  }, []);
+  useEffect(() => {
+    void loadHistory({ showLoading: true, resetPage: true });
+
+    const intervalId = window.setInterval(() => {
+      void loadHistory({ showLoading: false, resetPage: false });
+    }, HISTORY_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadHistory]);
 
   return (
     <>
       <DashboardHeader
         title="Cycle History"
         description="View all cluster rebalancing cycles and their results"
+        action={
+          lastUpdatedAt ? (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Updated {formatTimeWithSeconds(lastUpdatedAt)} GMT+07
+            </span>
+          ) : null
+        }
       />
 
       {error && (

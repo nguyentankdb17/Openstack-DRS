@@ -80,7 +80,6 @@ def _query_instant(query: str, at_ts: float | None = None) -> list[dict]:
 
 
 def _render_query_template(template: str, window_text: str) -> str:
-	# Avoid str.format() because PromQL labels also use braces (e.g. {job="..."}).
 	return template.replace("{window}", window_text)
 
 

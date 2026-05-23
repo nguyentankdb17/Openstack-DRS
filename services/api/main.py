@@ -1,7 +1,3 @@
-"""
-DRS API Service
-Provides RESTful API endpoints and scheduler for resource management
-"""
 from contextlib import asynccontextmanager
 import os
 import sys
@@ -22,6 +18,7 @@ from app.api.configuration import router as configuration_router
 from app.api.plan import router as plan_router
 from app.api.webhook import router as webhook_router
 from app.db.postgres import initialize_database
+from app.scheduler.monitor_job import shutdown_monitor_scheduler, start_monitor_scheduler
 from app.middleware import setup_middleware
 from app.core import settings
 from app.utils.logger import get_logger, setup_logging
@@ -39,15 +36,20 @@ async def lifespan(app: FastAPI):
     # Initialize database
     initialize_database()
     logger.info("[API Service] Database initialized")
+    scheduler_status = await start_monitor_scheduler()
+    logger.info("[API Service] Monitor scheduler initialized: %s", scheduler_status)
     
-    yield
+    try:
+        yield
+    finally:
+        await shutdown_monitor_scheduler()
 
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
     app = FastAPI(
         title="OpenStack DRS API",
-        description="Dynamic Resource Scheduler for OpenStack",
+        description="Distributed Resource Scheduler for OpenStack",
         version="1.0.0",
         lifespan=lifespan
     )

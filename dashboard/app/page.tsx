@@ -178,18 +178,6 @@ export default function Home() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Status
-                    </p>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {latestCycle.status === "running"
-                        ? "In Progress"
-                        : latestCycle.status === "completed"
-                          ? "Completed"
-                          : "Failed"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       Predicted Imbalance
                     </p>
                     <p className="font-medium text-gray-900 dark:text-white">
