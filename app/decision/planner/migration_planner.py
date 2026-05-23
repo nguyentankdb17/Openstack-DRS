@@ -148,7 +148,6 @@ def _all_raw_candidates(inventory_payload: list[dict[str, Any]]) -> list[Migrati
 						vm_id=vm_id,
 						source_host=source_host,
 						target_host=target_host,
-						migration_cost=0.0,
 						policy_reasons=[],
 						score_breakdown={},
 					)

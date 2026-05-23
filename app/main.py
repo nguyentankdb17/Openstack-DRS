@@ -10,7 +10,6 @@ if __package__ in {None, ""}:
         sys.path.insert(0, project_root)
 
 from app.api.monitor import router as monitor_router
-from app.api.inventory import router as inventory_router
 from app.api.constraints import router as constraints_router
 from app.api.cycle_history import router as cycle_history_router
 from app.api.configuration import router as configuration_router
@@ -44,7 +43,6 @@ def create_app() -> FastAPI:
     setup_logging(settings.app.log_level)
     setup_middleware(app)
     app.include_router(monitor_router, prefix="/api/v1")
-    app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(constraints_router, prefix="/api/v1")
     app.include_router(cycle_history_router, prefix="/api/v1")
     app.include_router(configuration_router, prefix="/api/v1")

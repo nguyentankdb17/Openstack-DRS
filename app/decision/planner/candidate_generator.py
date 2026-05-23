@@ -128,7 +128,6 @@ def build_candidate_pairs(
 						vm_id=vm.vm_id,
 						source_host=source_host,
 						target_host=target_host,
-						migration_cost=0,
 						policy_reasons=[],
 						score_breakdown={
 							"source_pressure": source_pressure,

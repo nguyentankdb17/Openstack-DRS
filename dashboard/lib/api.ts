@@ -66,11 +66,7 @@ function mapCandidate(candidate: MigrationCandidate): MigrationCandidate {
       candidate.reason ??
       candidate.policy_reasons?.join(", ") ??
       "Planned by migration planner",
-    estimated_duration:
-      candidate.estimated_duration ??
-      (candidate.migration_cost
-        ? Math.max(15, Math.round(candidate.migration_cost * 300))
-        : 60),
+    estimated_duration: candidate.estimated_duration ?? 60,
     cpu_cores: candidate.cpu_cores ?? candidate.score_breakdown?.source_load,
     memory_gb: candidate.memory_gb ?? candidate.score_breakdown?.vm_size,
   };
