@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { ConstraintForm } from "@/components/dashboard/constraint-form";
 import {
+  fetchConstraintOptions,
   fetchConstraints,
   removeConstraint,
   toggleConstraint,
   upsertConstraint,
 } from "@/lib/api";
-import { MigrationConstraint } from "@/lib/types";
+import { ConstraintInventoryOptions, MigrationConstraint } from "@/lib/types";
 import { formatDate } from "@/lib/format-utils";
 import { Trash2, Edit2, Plus, ToggleLeft } from "lucide-react";
 
@@ -49,9 +50,14 @@ function getConstraintDetails(constraint: MigrationConstraint): string {
 
 export default function ConstraintsPage() {
   const [constraints, setConstraints] = useState<MigrationConstraint[]>([]);
+  const [constraintOptions, setConstraintOptions] = useState<ConstraintInventoryOptions>({
+    vms: [],
+    hosts: [],
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOptionsLoading, setIsOptionsLoading] = useState(false);
   const [showMessage, setShowMessage] = useState<{
     type: "success" | "error";
     message: string;
@@ -61,8 +67,28 @@ export default function ConstraintsPage() {
     const load = async () => {
       try {
         setIsLoading(true);
-        const items = await fetchConstraints();
-        setConstraints(items);
+        setIsOptionsLoading(true);
+        const [constraintsResult, optionsResult] = await Promise.allSettled([
+          fetchConstraints(),
+          fetchConstraintOptions(),
+        ]);
+
+        if (constraintsResult.status === "rejected") {
+          throw constraintsResult.reason;
+        }
+
+        setConstraints(constraintsResult.value);
+        if (optionsResult.status === "fulfilled") {
+          setConstraintOptions(optionsResult.value);
+        } else {
+          setShowMessage({
+            type: "error",
+            message:
+              optionsResult.reason instanceof Error
+                ? optionsResult.reason.message
+                : "Failed to load OpenStack VM and host options",
+          });
+        }
       } catch (loadError) {
         setShowMessage({
           type: "error",
@@ -70,6 +96,7 @@ export default function ConstraintsPage() {
         });
       } finally {
         setIsLoading(false);
+        setIsOptionsLoading(false);
       }
     };
 
@@ -211,8 +238,10 @@ export default function ConstraintsPage() {
                 ? constraints.find((c) => c.id === editingId)
                 : undefined
             }
+            options={constraintOptions}
             onSave={handleSaveConstraint}
             isLoading={isLoading}
+            isOptionsLoading={isOptionsLoading}
             onCancel={() => {
               setIsCreating(false);
               setEditingId(null);

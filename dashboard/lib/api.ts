@@ -1,5 +1,6 @@
 import {
   ClusterDecision,
+  ConstraintInventoryOptions,
   Cycle,
   CycleMetrics,
   JobConfiguration,
@@ -266,6 +267,10 @@ export async function fetchConstraints(): Promise<MigrationConstraint[]> {
     created_at: new Date(item.created_at),
     updated_at: new Date(item.updated_at),
   }));
+}
+
+export async function fetchConstraintOptions(): Promise<ConstraintInventoryOptions> {
+  return request<ConstraintInventoryOptions>("/constraints/options");
 }
 
 export async function upsertConstraint(constraint: MigrationConstraint): Promise<MigrationConstraint> {

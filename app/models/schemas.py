@@ -123,6 +123,24 @@ class ConstraintRecord(BaseModel):
 	created_at: datetime
 	updated_at: datetime
 
+class ConstraintVMOption(BaseModel):
+	id: str
+	name: str | None = None
+	current_host: str
+
+
+class ConstraintHostOption(BaseModel):
+	id: str
+	name: str | None = None
+	state: str | None = None
+	status: str | None = None
+
+
+class ConstraintInventoryOptions(BaseModel):
+	vms: list[ConstraintVMOption] = Field(default_factory=list)
+	hosts: list[ConstraintHostOption] = Field(default_factory=list)
+
+
 
 class VMHostConstraintUpsert(BaseModel):
 	rule_name: str

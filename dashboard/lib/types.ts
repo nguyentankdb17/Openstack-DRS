@@ -85,6 +85,24 @@ export interface MigrationConstraint {
   updated_at: DateLike;
 }
 
+export interface ConstraintVMOption {
+  id: string;
+  name: string | null;
+  current_host: string;
+}
+
+export interface ConstraintHostOption {
+  id: string;
+  name: string | null;
+  state: string | null;
+  status: string | null;
+}
+
+export interface ConstraintInventoryOptions {
+  vms: ConstraintVMOption[];
+  hosts: ConstraintHostOption[];
+}
+
 export interface JobStatus {
   id: string;
   status: "running" | "paused" | "idle" | "error";

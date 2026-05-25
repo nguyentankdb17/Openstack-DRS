@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.schemas import ConstraintRecord, ExcludeConstraintUpsert, VMHostConstraintUpsert, VMVMConstraintUpsert
+from app.decision.datasource.openstack_inventory import OpenStackInventoryDatasource
+from app.models.schemas import (
+	ConstraintHostOption,
+	ConstraintInventoryOptions,
+	ConstraintRecord,
+	ConstraintVMOption,
+	ExcludeConstraintUpsert,
+	VMHostConstraintUpsert,
+	VMVMConstraintUpsert,
+)
 from app.domain.constraint_service import (
 	delete_constraint,
 	get_constraint,
@@ -20,6 +29,39 @@ router = APIRouter(tags=["constraints"])
 @router.get("/constraints", response_model=list[ConstraintRecord])
 def get_constraints() -> list[ConstraintRecord]:
 	return list_constraints()
+
+
+@router.get("/constraints/options", response_model=ConstraintInventoryOptions)
+def get_constraint_inventory_options() -> ConstraintInventoryOptions:
+	datasource = OpenStackInventoryDatasource()
+	if not datasource.is_available():
+		return ConstraintInventoryOptions()
+
+	try:
+		vms = [
+			ConstraintVMOption(
+				id=vm.vm_id,
+				name=vm.name,
+				current_host=vm.current_host,
+			)
+			for vm in datasource.list_vms()
+		]
+		hosts = [
+			ConstraintHostOption(
+				id=host.host,
+				name=host.metadata.get("hostname") or host.host,
+				state=host.state,
+				status=host.metadata.get("status"),
+			)
+			for host in datasource.list_hosts()
+		]
+	except Exception as exc:
+		raise HTTPException(status_code=502, detail=f"Unable to load OpenStack inventory: {exc}") from exc
+
+	return ConstraintInventoryOptions(
+		vms=sorted(vms, key=lambda item: ((item.name or item.id).lower(), item.id)),
+		hosts=sorted(hosts, key=lambda item: ((item.name or item.id).lower(), item.id)),
+	)
 
 
 @router.get("/constraints/{rule_name}", response_model=ConstraintRecord)
